@@ -1,0 +1,23 @@
+// .devcontainer/devcontainer.json
+{
+  "name": "Node.js & TypeScript",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+
+  "features": {},
+
+  "forwardPorts": [5173],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+
+  // ***ここを修正***
+  // Viteプロジェクトの作成を先に、その後npm installを実行
+  "postCreateCommand": "sudo chown -R node:node /workspaces/my-react-project",
+  "remoteUser": "node"
+}
