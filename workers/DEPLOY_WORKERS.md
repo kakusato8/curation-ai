@@ -42,18 +42,18 @@ cd workers
 
 # Gemini API キー
 wrangler secret put GEMINI_API_KEY
-# 入力: AIzaSyAOFXswyRObspZIF0iUJtM-SJp65KS37GM
+# 入力: YOUR_GEMINI_API_KEY
 
 # メール設定
 wrangler secret put EMAIL_USER
-# 入力: kakusato8@gmail.com
+# 入力: YOUR_EMAIL_ADDRESS
 
 wrangler secret put EMAIL_PASSWORD
-# 入力: horuhis8horuhis8
+# 入力: YOUR_EMAIL_PASSWORD
 
 # JWT シークレット（ランダムな文字列）
 wrangler secret put JWT_SECRET
-# 入力: your-super-secret-jwt-key-make-it-long-and-random
+# 入力: YOUR_JWT_SECRET_KEY
 ```
 
 ### 2. シークレット確認

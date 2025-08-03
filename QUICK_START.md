@@ -40,19 +40,19 @@ sed -i 's/your-preview-kv-namespace-id/def456.../g' wrangler.toml
 ```bash
 # Gemini API キー
 wrangler secret put GEMINI_API_KEY
-# 入力: AIzaSyAOFXswyRObspZIF0iUJtM-SJp65KS37GM
+# 入力: YOUR_GEMINI_API_KEY
 
 # メールアドレス
 wrangler secret put EMAIL_USER
-# 入力: kakusato8@gmail.com
+# 入力: YOUR_EMAIL_ADDRESS
 
 # メールパスワード
 wrangler secret put EMAIL_PASSWORD  
-# 入力: horuhis8horuhis8
+# 入力: YOUR_EMAIL_PASSWORD
 
 # JWT シークレット（強力なランダム文字列）
 wrangler secret put JWT_SECRET
-# 入力: curation-ai-super-secret-jwt-key-2024-make-it-very-long-and-random-string
+# 入力: YOUR_JWT_SECRET_KEY
 ```
 
 ## 手順4: デプロイ実行
