@@ -18,6 +18,6 @@
 
   // ***ここを修正***
   // Viteプロジェクトの作成を先に、その後npm installを実行
-  "postCreateCommand": "sudo chown -R node:node /workspaces/my-react-project",
+  "postCreateCommand": "sudo chown -R node:node /workspaces/curation-ai",
   "remoteUser": "node"
 }
