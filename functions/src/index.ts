@@ -2,11 +2,15 @@ import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { onRequest } from 'firebase-functions/v2/https';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onSchedule, ScheduledEvent } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import * as express from 'express';
+import * as dotenv from 'dotenv';
 import { AppModule } from './app.module';
 import { DeliveryService } from './delivery/delivery.service';
+
+// Load environment variables
+dotenv.config();
 
 // Set global options for all functions
 setGlobalOptions({
@@ -53,7 +57,7 @@ export const scheduledDelivery = onSchedule({
   timeZone: 'Asia/Tokyo',
   memory: '1GiB',
   timeoutSeconds: 540,
-}, async (event) => {
+}, async (event: ScheduledEvent) => {
   console.log('Starting scheduled delivery...');
   
   try {

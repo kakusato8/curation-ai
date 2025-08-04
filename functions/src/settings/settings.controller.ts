@@ -13,6 +13,7 @@ import { SettingsService } from './settings.service';
 import { CreateSettingDto } from './dto/create-setting.dto';
 import { UpdateSettingDto } from './dto/update-setting.dto';
 import { AuthGuard } from '../auth/auth.guard';
+import { AuthenticatedRequest } from '../common/interfaces/request.interface';
 
 @Controller('settings')
 @UseGuards(AuthGuard)
@@ -22,22 +23,22 @@ export class SettingsController {
   ) {}
 
   @Get()
-  async findAll(@Request() req) {
+  async findAll(@Request() req: AuthenticatedRequest) {
     return this.settingsService.getUserSettings(req.user.uid);
   }
 
   @Post()
-  async create(@Request() req, @Body() createSettingDto: CreateSettingDto) {
+  async create(@Request() req: AuthenticatedRequest, @Body() createSettingDto: CreateSettingDto) {
     return this.settingsService.createSetting(req.user.uid, createSettingDto);
   }
 
   @Put(':id')
-  async update(@Request() req, @Param('id') id: string, @Body() updateSettingDto: UpdateSettingDto) {
+  async update(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Body() updateSettingDto: UpdateSettingDto) {
     return this.settingsService.updateSetting(req.user.uid, id, updateSettingDto);
   }
 
   @Delete(':id')
-  async remove(@Request() req, @Param('id') id: string) {
+  async remove(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     await this.settingsService.deleteSetting(req.user.uid, id);
     return { message: 'Setting deleted successfully' };
   }

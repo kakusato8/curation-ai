@@ -53,8 +53,9 @@ export class GeminiService {
       this.logger.log(`Generated content for query: ${query}`);
       return text;
     } catch (error) {
-      this.logger.error(`Error generating content: ${error.message}`);
-      throw new Error(`Failed to generate content: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error generating content: ${errorMessage}`);
+      throw new Error(`Failed to generate content: ${errorMessage}`);
     }
   }
 
@@ -66,10 +67,11 @@ export class GeminiService {
         const content = await this.generateContent(query);
         results.push({ query, content });
       } catch (error) {
-        this.logger.error(`Failed to generate content for query "${query}": ${error.message}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Failed to generate content for query "${query}": ${errorMessage}`);
         results.push({ 
           query, 
-          content: `エラーが発生しました: ${error.message}` 
+          content: `エラーが発生しました: ${errorMessage}` 
         });
       }
     }

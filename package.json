@@ -23,8 +23,6 @@
     "deploy": "npm run build:all && firebase deploy",
     "deploy:hosting": "npm run build:frontend && firebase deploy --only hosting",
     "deploy:functions": "npm run build:functions && firebase deploy --only functions",
-    "deploy:workers": "cd workers && npm run deploy",
-    "dev:workers": "cd workers && npm run dev",
     "predeploy": "npm run build:all"
   },
   "dependencies": {

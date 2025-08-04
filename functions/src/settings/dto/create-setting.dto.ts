@@ -3,14 +3,14 @@ import { IsString, IsNotEmpty, IsEnum, IsOptional, IsNumber, Min, Max } from 'cl
 export class CreateSettingDto {
   @IsString()
   @IsNotEmpty()
-  categoryName: string;
+  categoryName!: string;
 
   @IsString()
   @IsNotEmpty()
-  geminiQuery: string;
+  geminiQuery!: string;
 
   @IsEnum(['daily', 'weekly', 'monthly'])
-  frequency: 'daily' | 'weekly' | 'monthly';
+  frequency!: 'daily' | 'weekly' | 'monthly';
 
   @IsOptional()
   @IsNumber()

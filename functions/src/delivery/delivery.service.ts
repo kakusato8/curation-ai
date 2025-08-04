@@ -48,7 +48,8 @@ export class DeliveryService {
         }
       }
     } catch (error) {
-      this.logger.error(`Error in scheduled delivery: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error in scheduled delivery: ${errorMessage}`);
     }
   }
 
@@ -125,9 +126,10 @@ export class DeliveryService {
       
       this.logger.log(`Successfully delivered ${setting.categoryName} to ${userEmail}`);
     } catch (error) {
-      this.logger.error(`Failed to deliver ${setting.categoryName} to ${userEmail}: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to deliver ${setting.categoryName} to ${userEmail}: ${errorMessage}`);
       logEntry.status = 'failed';
-      logEntry.errorMessage = error.message;
+      logEntry.errorMessage = errorMessage;
     }
 
     // Save delivery log
@@ -139,7 +141,8 @@ export class DeliveryService {
       const firestore = this.firebaseService.getFirestore();
       await firestore.collection('delivery_logs').add(log);
     } catch (error) {
-      this.logger.error(`Failed to save delivery log: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to save delivery log: ${errorMessage}`);
     }
   }
 

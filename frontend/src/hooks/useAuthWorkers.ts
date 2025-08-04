@@ -28,11 +28,11 @@ export const useAuthWorkers = () => {
       
       const result = await apiClient.login(uid, email);
       setUser(result.user);
+      setLoading(false);
     } catch (error: any) {
       setError(error.message);
-      throw error;
-    } finally {
       setLoading(false);
+      throw error;
     }
   };
 
@@ -46,11 +46,11 @@ export const useAuthWorkers = () => {
       
       const result = await apiClient.register(uid, email);
       setUser(result.user);
+      setLoading(false);
     } catch (error: any) {
       setError(error.message);
-      throw error;
-    } finally {
       setLoading(false);
+      throw error;
     }
   };
 

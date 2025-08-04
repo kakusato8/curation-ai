@@ -15,6 +15,21 @@ dist-ssr
 # Firebase
 .firebase
 
+# Environment variables (SECURITY CRITICAL)
+.env
+.env.local
+.env.production
+.env.development
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+frontend/.env.development
+frontend/.env.workers
+functions/.env
+functions/.env.local
+functions/.env.production
+functions/.env.development
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

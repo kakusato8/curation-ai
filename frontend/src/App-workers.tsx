@@ -1,8 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthWorkers } from './hooks/useAuthWorkers';
-import { LoginForm } from './components/LoginForm';
-import { Dashboard } from './pages/Dashboard';
+import { LoginFormWorkers } from './components/LoginFormWorkers';
+import { DashboardWorkers } from './pages/DashboardWorkers';
 import './App.css';
 
 const AppWorkers: React.FC = () => {
@@ -23,11 +23,11 @@ const AppWorkers: React.FC = () => {
         <Routes>
           <Route 
             path="/login" 
-            element={user ? <Navigate to="/" replace /> : <LoginForm />} 
+            element={user ? <Navigate to="/" replace /> : <LoginFormWorkers />} 
           />
           <Route 
             path="/" 
-            element={user ? <Dashboard /> : <Navigate to="/login" replace />} 
+            element={user ? <DashboardWorkers /> : <LoginFormWorkers />} 
           />
         </Routes>
       </div>
