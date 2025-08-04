@@ -11,5 +11,6 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     open: true
-  }
+  },
+  envDir: '.'  // Use .env files from frontend directory
 })

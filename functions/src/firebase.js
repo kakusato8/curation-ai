@@ -12,8 +12,8 @@ const firebaseConfig = {
   projectId: "curation-ai-10f7c",
   storageBucket: "curation-ai-10f7c.firebasestorage.app",
   messagingSenderId: "280024733736",
-  appId: "1:280024733736:web:efcaadd854948689f0bd1d",
-  measurementId: "G-TPRXM95ELV"
+  appId: "1:280024733736:web:faa911ce3336556ff0bd1d",
+  measurementId: "G-T68PVBB5BV"
 };
 
 // Initialize Firebase
