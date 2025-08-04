@@ -2,6 +2,7 @@ import { Controller, Post, Get, Param, UseGuards, Request } from '@nestjs/common
 import { DeliveryService } from './delivery.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { AuthenticatedRequest } from '../common/interfaces/request.interface';
+import { DeliveryContentResponse, BatchDeliveryResponse } from './dto/delivery-content.dto';
 
 @Controller('delivery')
 @UseGuards(AuthGuard)
@@ -24,5 +25,18 @@ export class DeliveryController {
   async getDeliveryLogs(@Request() req: AuthenticatedRequest) {
     const logs = await this.deliveryService.getDeliveryLogs(req.user.uid);
     return { logs };
+  }
+
+  // New endpoints for in-app content delivery
+  @Post('content/:settingId')
+  async instantContentDeliverySetting(@Request() req: AuthenticatedRequest, @Param('settingId') settingId: string): Promise<DeliveryContentResponse> {
+    const result = await this.deliveryService.instantContentDelivery(req.user.uid, settingId);
+    return result as DeliveryContentResponse;
+  }
+
+  @Post('content/all')
+  async instantContentDeliveryAll(@Request() req: AuthenticatedRequest): Promise<BatchDeliveryResponse> {
+    const result = await this.deliveryService.instantContentDelivery(req.user.uid);
+    return result as BatchDeliveryResponse;
   }
 }

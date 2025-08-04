@@ -3,7 +3,8 @@ import { useAuth } from '../hooks/useAuth';
 import { SettingsList } from '../components/SettingsList';
 import { SettingForm } from '../components/SettingForm';
 import { DeliveryLogs } from '../components/DeliveryLogs';
-import { UserSetting, UserSettings, apiClient } from '../utils/api';
+import ContentDisplay from '../components/ContentDisplay';
+import { UserSetting, UserSettings, apiClient, DeliveryContentResponse, BatchDeliveryResponse } from '../utils/api';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -13,6 +14,19 @@ export const Dashboard: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingSetting, setEditingSetting] = useState<UserSetting | undefined>();
   const [activeTab, setActiveTab] = useState<'settings' | 'logs'>('settings');
+  
+  // Content display state
+  const [contentDisplay, setContentDisplay] = useState<{
+    content: DeliveryContentResponse | BatchDeliveryResponse | null;
+    loading: boolean;
+    error: string | null;
+    visible: boolean;
+  }>({
+    content: null,
+    loading: false,
+    error: null,
+    visible: false,
+  });
 
   useEffect(() => {
     loadSettings();
@@ -77,6 +91,70 @@ export const Dashboard: React.FC = () => {
     setEditingSetting(undefined);
   };
 
+  // New content delivery handlers
+  const handleInstantContentDelivery = async (settingId: string) => {
+    setContentDisplay({
+      content: null,
+      loading: true,
+      error: null,
+      visible: true,
+    });
+
+    try {
+      const content = await apiClient.instantContentDelivery(settingId);
+      setContentDisplay({
+        content,
+        loading: false,
+        error: null,
+        visible: true,
+      });
+    } catch (error) {
+      console.error('Content delivery failed:', error);
+      setContentDisplay({
+        content: null,
+        loading: false,
+        error: error instanceof Error ? error.message : 'コンテンツの生成に失敗しました',
+        visible: true,
+      });
+    }
+  };
+
+  const handleBatchContentDelivery = async () => {
+    setContentDisplay({
+      content: null,
+      loading: true,
+      error: null,
+      visible: true,
+    });
+
+    try {
+      const content = await apiClient.instantContentDeliveryAll();
+      setContentDisplay({
+        content,
+        loading: false,
+        error: null,
+        visible: true,
+      });
+    } catch (error) {
+      console.error('Batch content delivery failed:', error);
+      setContentDisplay({
+        content: null,
+        loading: false,
+        error: error instanceof Error ? error.message : 'コンテンツの生成に失敗しました',
+        visible: true,
+      });
+    }
+  };
+
+  const handleCloseContentDisplay = () => {
+    setContentDisplay({
+      content: null,
+      loading: false,
+      error: null,
+      visible: false,
+    });
+  };
+
   if (loading) {
     return <div className="dashboard loading">読み込み中...</div>;
   }
@@ -136,6 +214,8 @@ export const Dashboard: React.FC = () => {
                 onEdit={handleEditSetting}
                 onDelete={handleDeleteSetting}
                 onRefresh={loadSettings}
+                onInstantContent={handleInstantContentDelivery}
+                onBatchContent={handleBatchContentDelivery}
               />
             )}
           </div>
@@ -147,6 +227,16 @@ export const Dashboard: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* Content Display Modal */}
+      {contentDisplay.visible && (
+        <ContentDisplay
+          content={contentDisplay.content}
+          loading={contentDisplay.loading}
+          error={contentDisplay.error}
+          onClose={handleCloseContentDisplay}
+        />
+      )}
     </div>
   );
 };

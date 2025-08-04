@@ -6,13 +6,17 @@ interface SettingsListProps {
   onEdit: (setting: UserSetting) => void;
   onDelete: (id: string) => void;
   onRefresh: () => void;
+  onInstantContent: (settingId: string) => void;
+  onBatchContent: () => void;
 }
 
 export const SettingsList: React.FC<SettingsListProps> = ({ 
   settings, 
   onEdit, 
   onDelete, 
-  onRefresh 
+  onRefresh,
+  onInstantContent,
+  onBatchContent
 }) => {
   const [loadingDelivery, setLoadingDelivery] = useState<string | null>(null);
 
@@ -30,30 +34,12 @@ export const SettingsList: React.FC<SettingsListProps> = ({
     }
   };
 
-  const handleInstantDelivery = async (settingId: string) => {
-    try {
-      setLoadingDelivery(settingId);
-      await apiClient.instantDelivery(settingId);
-      alert('即時配信を開始しました');
-    } catch (error) {
-      console.error('Instant delivery failed:', error);
-      alert('配信に失敗しました');
-    } finally {
-      setLoadingDelivery(null);
-    }
+  const handleInstantContent = (settingId: string) => {
+    onInstantContent(settingId);
   };
 
-  const handleInstantDeliveryAll = async () => {
-    try {
-      setLoadingDelivery('all');
-      await apiClient.instantDeliveryAll();
-      alert('全設定の即時配信を開始しました');
-    } catch (error) {
-      console.error('Instant delivery all failed:', error);
-      alert('配信に失敗しました');
-    } finally {
-      setLoadingDelivery(null);
-    }
+  const handleBatchContent = () => {
+    onBatchContent();
   };
 
   if (settings.length === 0) {
@@ -70,10 +56,9 @@ export const SettingsList: React.FC<SettingsListProps> = ({
         <h3>配信設定一覧</h3>
         <button 
           className="instant-delivery-all"
-          onClick={handleInstantDeliveryAll}
-          disabled={loadingDelivery !== null}
+          onClick={handleBatchContent}
         >
-          {loadingDelivery === 'all' ? '配信中...' : '全設定を即時配信'}
+          全設定のコンテンツを生成
         </button>
       </div>
 
@@ -112,10 +97,9 @@ export const SettingsList: React.FC<SettingsListProps> = ({
             <div className="setting-footer">
               <button
                 className="instant-delivery-btn"
-                onClick={() => handleInstantDelivery(setting.id)}
-                disabled={loadingDelivery !== null}
+                onClick={() => handleInstantContent(setting.id)}
               >
-                {loadingDelivery === setting.id ? '配信中...' : '即時配信'}
+                コンテンツ生成
               </button>
             </div>
           </div>

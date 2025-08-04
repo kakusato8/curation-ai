@@ -32,6 +32,15 @@ let DeliveryController = class DeliveryController {
         const logs = await this.deliveryService.getDeliveryLogs(req.user.uid);
         return { logs };
     }
+    // New endpoints for in-app content delivery
+    async instantContentDeliverySetting(req, settingId) {
+        const result = await this.deliveryService.instantContentDelivery(req.user.uid, settingId);
+        return result;
+    }
+    async instantContentDeliveryAll(req) {
+        const result = await this.deliveryService.instantContentDelivery(req.user.uid);
+        return result;
+    }
 };
 exports.DeliveryController = DeliveryController;
 __decorate([
@@ -56,6 +65,21 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], DeliveryController.prototype, "getDeliveryLogs", null);
+__decorate([
+    (0, common_1.Post)('content/:settingId'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('settingId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], DeliveryController.prototype, "instantContentDeliverySetting", null);
+__decorate([
+    (0, common_1.Post)('content/all'),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], DeliveryController.prototype, "instantContentDeliveryAll", null);
 exports.DeliveryController = DeliveryController = __decorate([
     (0, common_1.Controller)('delivery'),
     (0, common_1.UseGuards)(auth_guard_1.AuthGuard),

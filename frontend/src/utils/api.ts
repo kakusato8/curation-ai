@@ -28,6 +28,25 @@ export interface DeliveryLog {
   contentSummary?: string;
 }
 
+export interface DeliveryContentResponse {
+  settingId: string;
+  categoryName: string;
+  content: string;
+  query: string;
+  generatedAt: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface BatchDeliveryResponse {
+  contents: DeliveryContentResponse[];
+  totalProcessed: number;
+  successful: number;
+  failed: number;
+  errors: Array<{ settingId: string; categoryName: string; error: string }>;
+  generatedAt: string;
+}
+
 class ApiClient {
   private async getAuthToken(): Promise<string> {
     const user = auth.currentUser;
@@ -96,6 +115,19 @@ class ApiClient {
 
   async getDeliveryLogs(): Promise<{ logs: DeliveryLog[] }> {
     return this.request<{ logs: DeliveryLog[] }>('/delivery/logs');
+  }
+
+  // New content delivery methods
+  async instantContentDelivery(settingId: string): Promise<DeliveryContentResponse> {
+    return this.request<DeliveryContentResponse>(`/delivery/content/${settingId}`, {
+      method: 'POST',
+    });
+  }
+
+  async instantContentDeliveryAll(): Promise<BatchDeliveryResponse> {
+    return this.request<BatchDeliveryResponse>('/delivery/content/all', {
+      method: 'POST',
+    });
   }
 
   // Auth API

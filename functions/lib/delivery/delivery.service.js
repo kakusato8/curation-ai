@@ -15,13 +15,11 @@ const common_1 = require("@nestjs/common");
 const firebase_service_1 = require("../firebase/firebase.service");
 const settings_service_1 = require("../settings/settings.service");
 const gemini_service_1 = require("../gemini/gemini.service");
-const email_service_1 = require("../email/email.service");
 let DeliveryService = DeliveryService_1 = class DeliveryService {
-    constructor(firebaseService, settingsService, geminiService, emailService) {
+    constructor(firebaseService, settingsService, geminiService) {
         this.firebaseService = firebaseService;
         this.settingsService = settingsService;
         this.geminiService = geminiService;
-        this.emailService = emailService;
         this.logger = new common_1.Logger(DeliveryService_1.name);
     }
     async handleScheduledDelivery() {
@@ -108,8 +106,7 @@ let DeliveryService = DeliveryService_1 = class DeliveryService {
             this.logger.log(`Generating content for ${setting.categoryName} (user: ${userId})`);
             // Generate content using Gemini
             const content = await this.geminiService.generateContent(setting.geminiQuery);
-            // Send email
-            await this.emailService.sendPersonalizedContent(userEmail, setting.categoryName, content);
+            // Note: Email sending removed - content is now delivered via in-app display
             logEntry.status = 'success';
             logEntry.contentSummary = content.substring(0, 100) + '...';
             this.logger.log(`Successfully delivered ${setting.categoryName} to ${userEmail}`);
@@ -143,13 +140,107 @@ let DeliveryService = DeliveryService_1 = class DeliveryService {
             .get();
         return logsSnapshot.docs.map(doc => doc.data());
     }
+    // New method for in-app content delivery
+    async instantContentDelivery(userId, settingId) {
+        this.logger.log(`Starting instant content delivery for user ${userId}${settingId ? ` (setting: ${settingId})` : ' (all settings)'}`);
+        const userSettings = await this.settingsService.getUserSettings(userId);
+        if (!userSettings || userSettings.settings.length === 0) {
+            throw new Error('No settings found for user');
+        }
+        if (settingId) {
+            // Single setting content delivery
+            const setting = userSettings.settings.find(s => s.id === settingId);
+            if (!setting) {
+                throw new Error('Setting not found');
+            }
+            return await this.generateContentResponse(userId, setting);
+        }
+        else {
+            // Batch content delivery for all settings
+            return await this.generateBatchContentResponse(userId, userSettings.settings);
+        }
+    }
+    async generateContentResponse(userId, setting) {
+        const response = {
+            settingId: setting.id,
+            categoryName: setting.categoryName,
+            content: '',
+            query: setting.geminiQuery,
+            generatedAt: new Date(),
+            success: false,
+        };
+        try {
+            this.logger.log(`Generating content for ${setting.categoryName} (user: ${userId})`);
+            // Generate content using Gemini
+            const content = await this.geminiService.generateContent(setting.geminiQuery);
+            response.content = content;
+            response.success = true;
+            // Log the delivery
+            await this.saveDeliveryLog({
+                userId,
+                settingId: setting.id,
+                deliveryType: 'instant',
+                status: 'success',
+                contentSummary: content.substring(0, 100) + '...',
+                deliveredAt: new Date(),
+            });
+            this.logger.log(`Successfully generated content for ${setting.categoryName}`);
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            response.error = errorMessage;
+            this.logger.error(`Failed to generate content for ${setting.categoryName}: ${errorMessage}`);
+            // Log the error
+            await this.saveDeliveryLog({
+                userId,
+                settingId: setting.id,
+                deliveryType: 'instant',
+                status: 'failed',
+                errorMessage,
+                deliveredAt: new Date(),
+            });
+        }
+        return response;
+    }
+    async generateBatchContentResponse(userId, settings) {
+        const contents = [];
+        const errors = [];
+        let successful = 0;
+        let failed = 0;
+        // Process all settings concurrently for better performance
+        const promises = settings.map(setting => this.generateContentResponse(userId, setting));
+        const results = await Promise.all(promises);
+        for (const result of results) {
+            contents.push(result);
+            if (result.success) {
+                successful++;
+            }
+            else {
+                failed++;
+                if (result.error) {
+                    errors.push({
+                        settingId: result.settingId,
+                        categoryName: result.categoryName,
+                        error: result.error,
+                    });
+                }
+            }
+        }
+        return {
+            contents,
+            totalProcessed: settings.length,
+            successful,
+            failed,
+            errors,
+            generatedAt: new Date(),
+        };
+    }
 };
 exports.DeliveryService = DeliveryService;
 exports.DeliveryService = DeliveryService = DeliveryService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [firebase_service_1.FirebaseService,
         settings_service_1.SettingsService,
-        gemini_service_1.GeminiService,
-        email_service_1.EmailService])
+        gemini_service_1.GeminiService])
 ], DeliveryService);
 //# sourceMappingURL=delivery.service.js.map
