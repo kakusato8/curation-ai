@@ -37,6 +37,9 @@ export const createNestServer = async (expressInstance: express.Express) => {
     credentials: true,
   });
 
+  // Set global prefix for API routes
+  app.setGlobalPrefix('api');
+
   await app.init();
   return app;
 };
@@ -49,6 +52,7 @@ createNestServer(server)
 export const api = onRequest({
   timeoutSeconds: 540,
   memory: '1GiB',
+  invoker: 'public',
 }, server);
 
 // Scheduled delivery function - runs every day at 5 AM JST
