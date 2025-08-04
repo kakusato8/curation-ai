@@ -23,7 +23,13 @@ let SettingsController = class SettingsController {
         this.settingsService = settingsService;
     }
     async findAll(req) {
-        return this.settingsService.getUserSettings(req.user.uid);
+        try {
+            const settings = await this.settingsService.getUserSettings(req.user.uid);
+            return settings;
+        }
+        catch (error) {
+            throw error;
+        }
     }
     async create(req, createSettingDto) {
         return this.settingsService.createSetting(req.user.uid, createSettingDto);

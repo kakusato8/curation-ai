@@ -24,7 +24,12 @@ export class SettingsController {
 
   @Get()
   async findAll(@Request() req: AuthenticatedRequest) {
-    return this.settingsService.getUserSettings(req.user.uid);
+    try {
+      const settings = await this.settingsService.getUserSettings(req.user.uid);
+      return settings;
+    } catch (error) {
+      throw error;
+    }
   }
 
   @Post()

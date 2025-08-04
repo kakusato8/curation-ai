@@ -9,12 +9,18 @@ import { v4 as uuidv4 } from 'uuid';
 export class SettingsService {
   constructor(private firebaseService: FirebaseService) {}
 
-  async getUserSettings(userId: string): Promise<UserSettings | null> {
+  async getUserSettings(userId: string): Promise<UserSettings> {
     const firestore = this.firebaseService.getFirestore();
     const settingsDoc = await firestore.collection('user_settings').doc(userId).get();
     
     if (!settingsDoc.exists) {
-      return null;
+      // Return empty settings structure instead of null
+      return {
+        userId,
+        settings: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
     }
     
     return settingsDoc.data() as UserSettings;

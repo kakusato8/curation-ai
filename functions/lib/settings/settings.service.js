@@ -21,7 +21,13 @@ let SettingsService = class SettingsService {
         const firestore = this.firebaseService.getFirestore();
         const settingsDoc = await firestore.collection('user_settings').doc(userId).get();
         if (!settingsDoc.exists) {
-            return null;
+            // Return empty settings structure instead of null
+            return {
+                userId,
+                settings: [],
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            };
         }
         return settingsDoc.data();
     }
