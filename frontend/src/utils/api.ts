@@ -19,13 +19,19 @@ export interface UserSettings {
 }
 
 export interface DeliveryLog {
+  id?: string;
   userId: string;
   settingId?: string;
+  categoryName?: string;
+  geminiQuery?: string;
   deliveryType: 'scheduled' | 'instant';
   status: 'success' | 'failed';
   errorMessage?: string;
   deliveredAt: string;
   contentSummary?: string;
+  fullContent?: string;
+  recipientEmail?: string;
+  generatedAt?: string;
 }
 
 export interface DeliveryContentResponse {
@@ -45,6 +51,34 @@ export interface BatchDeliveryResponse {
   failed: number;
   errors: Array<{ settingId: string; categoryName: string; error: string }>;
   generatedAt: string;
+}
+
+export interface ContentArchiveResponse {
+  logs: DeliveryLog[];
+  totalCount: number;
+  categories: string[];
+}
+
+export interface DeliveryLogsFilters {
+  limit?: number;
+  status?: 'success' | 'failed';
+  deliveryType?: 'scheduled' | 'instant';
+  startDate?: Date;
+  endDate?: Date;
+  searchText?: string;
+  categoryName?: string;
+  sortBy?: 'deliveredAt' | 'generatedAt';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface ContentArchiveFilters {
+  limit?: number;
+  categoryName?: string;
+  startDate?: Date;
+  endDate?: Date;
+  searchText?: string;
+  sortBy?: 'deliveredAt' | 'generatedAt' | 'categoryName';
+  sortOrder?: 'asc' | 'desc';
 }
 
 class ApiClient {
@@ -113,8 +147,32 @@ class ApiClient {
     });
   }
 
-  async getDeliveryLogs(): Promise<{ logs: DeliveryLog[] }> {
-    return this.request<{ logs: DeliveryLog[] }>('/delivery/logs');
+  async getDeliveryLogs(filters?: DeliveryLogsFilters): Promise<{ logs: DeliveryLog[] }> {
+    const params = new URLSearchParams();
+    
+    if (filters) {
+      if (filters.limit) params.append('limit', filters.limit.toString());
+      if (filters.status) params.append('status', filters.status);
+      if (filters.deliveryType) params.append('deliveryType', filters.deliveryType);
+      if (filters.startDate) params.append('startDate', filters.startDate.toISOString());
+      if (filters.endDate) params.append('endDate', filters.endDate.toISOString());
+      if (filters.searchText) params.append('searchText', filters.searchText);
+      if (filters.categoryName) params.append('categoryName', filters.categoryName);
+      if (filters.sortBy) params.append('sortBy', filters.sortBy);
+      if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
+    }
+    
+    const queryString = params.toString();
+    return this.request<{ logs: DeliveryLog[] }>(`/delivery/logs${queryString ? '?' + queryString : ''}`);
+  }
+
+  async getDeliveryLogDetail(logId: string): Promise<{ log: DeliveryLog }> {
+    return this.request<{ log: DeliveryLog }>(`/delivery/logs/${logId}`);
+  }
+
+  async getDeliveryHistory(categoryName: string, limit?: number): Promise<{ history: DeliveryLog[] }> {
+    const queryParam = limit ? `?limit=${limit}` : '';
+    return this.request<{ history: DeliveryLog[] }>(`/delivery/history/${encodeURIComponent(categoryName)}${queryParam}`);
   }
 
   // New content delivery methods
@@ -128,6 +186,24 @@ class ApiClient {
     return this.request<BatchDeliveryResponse>('/delivery/content/all', {
       method: 'POST',
     });
+  }
+
+  // Content archive methods
+  async getContentArchive(filters?: ContentArchiveFilters): Promise<ContentArchiveResponse> {
+    const params = new URLSearchParams();
+    
+    if (filters) {
+      if (filters.limit) params.append('limit', filters.limit.toString());
+      if (filters.categoryName) params.append('categoryName', filters.categoryName);
+      if (filters.startDate) params.append('startDate', filters.startDate.toISOString());
+      if (filters.endDate) params.append('endDate', filters.endDate.toISOString());
+      if (filters.searchText) params.append('searchText', filters.searchText);
+      if (filters.sortBy) params.append('sortBy', filters.sortBy);
+      if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
+    }
+    
+    const queryString = params.toString();
+    return this.request<ContentArchiveResponse>(`/delivery/archive${queryString ? '?' + queryString : ''}`);
   }
 
   // Auth API

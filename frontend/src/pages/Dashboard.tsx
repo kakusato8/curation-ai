@@ -4,6 +4,8 @@ import { SettingsList } from '../components/SettingsList';
 import { SettingForm } from '../components/SettingForm';
 import { DeliveryLogs } from '../components/DeliveryLogs';
 import ContentDisplay from '../components/ContentDisplay';
+import DeliveryHistory from '../components/DeliveryHistory';
+import ContentArchive from '../components/ContentArchive';
 import { UserSetting, UserSettings, apiClient, DeliveryContentResponse, BatchDeliveryResponse } from '../utils/api';
 
 export const Dashboard: React.FC = () => {
@@ -13,7 +15,10 @@ export const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingSetting, setEditingSetting] = useState<UserSetting | undefined>();
-  const [activeTab, setActiveTab] = useState<'settings' | 'logs'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'logs' | 'archive'>('settings');
+  const [showHistory, setShowHistory] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
+  const [historyCategory, setHistoryCategory] = useState<string | undefined>();
   
   // Content display state
   const [contentDisplay, setContentDisplay] = useState<{
@@ -155,6 +160,24 @@ export const Dashboard: React.FC = () => {
     });
   };
 
+  const handleShowHistory = (categoryName?: string) => {
+    setHistoryCategory(categoryName);
+    setShowHistory(true);
+  };
+
+  const handleCloseHistory = () => {
+    setShowHistory(false);
+    setHistoryCategory(undefined);
+  };
+  
+  const handleShowArchive = () => {
+    setShowArchive(true);
+  };
+  
+  const handleCloseArchive = () => {
+    setShowArchive(false);
+  };
+
   if (loading) {
     return <div className="dashboard loading">読み込み中...</div>;
   }
@@ -183,6 +206,12 @@ export const Dashboard: React.FC = () => {
           onClick={() => setActiveTab('logs')}
         >
           配信ログ
+        </button>
+        <button 
+          className={`nav-tab ${activeTab === 'archive' ? 'active' : ''}`}
+          onClick={() => setActiveTab('archive')}
+        >
+          コンテンツライブラリ
         </button>
       </nav>
 
@@ -216,6 +245,7 @@ export const Dashboard: React.FC = () => {
                 onRefresh={loadSettings}
                 onInstantContent={handleInstantContentDelivery}
                 onBatchContent={handleBatchContentDelivery}
+                onShowHistory={handleShowHistory}
               />
             )}
           </div>
@@ -223,7 +253,60 @@ export const Dashboard: React.FC = () => {
 
         {activeTab === 'logs' && (
           <div className="logs-section">
+            <div className="logs-actions">
+              <button 
+                className="btn-secondary"
+                onClick={() => handleShowHistory()}
+              >
+                配信履歴を見る
+              </button>
+            </div>
             <DeliveryLogs />
+          </div>
+        )}
+        
+        {activeTab === 'archive' && (
+          <div className="archive-section">
+            <div className="archive-intro">
+              <h3>コンテンツライブラリ</h3>
+              <p>これまでに生成されたすべてのコンテンツを閲覧、検索、管理できます。</p>
+            </div>
+            
+            <div className="archive-actions">
+              <button 
+                className="btn-primary"
+                onClick={handleShowArchive}
+              >
+                コンテンツライブラリを開く
+              </button>
+              <button 
+                className="btn-secondary"
+                onClick={() => handleShowHistory()}
+              >
+                配信履歴も見る
+              </button>
+            </div>
+            
+            <div className="archive-features">
+              <div className="feature-list">
+                <div className="feature-item">
+                  <h4>📚 完全なコンテンツアーカイブ</h4>
+                  <p>生成されたすべてのコンテンツを永続的に保存・閲覧</p>
+                </div>
+                <div className="feature-item">
+                  <h4>🔍 高度な検索機能</h4>
+                  <p>コンテンツ、カテゴリ、クエリをキーワードで検索</p>
+                </div>
+                <div className="feature-item">
+                  <h4>📅 日付範囲フィルター</h4>
+                  <p>特定の期間に生成されたコンテンツを絞り込み</p>
+                </div>
+                <div className="feature-item">
+                  <h4>📋 カテゴリ別整理</h4>
+                  <p>設定したカテゴリごとにコンテンツを整理・表示</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
@@ -235,6 +318,21 @@ export const Dashboard: React.FC = () => {
           loading={contentDisplay.loading}
           error={contentDisplay.error}
           onClose={handleCloseContentDisplay}
+        />
+      )}
+
+      {/* Delivery History Modal */}
+      {showHistory && (
+        <DeliveryHistory
+          categoryName={historyCategory}
+          onClose={handleCloseHistory}
+        />
+      )}
+      
+      {/* Content Archive Modal */}
+      {showArchive && (
+        <ContentArchive
+          onClose={handleCloseArchive}
         />
       )}
     </div>
