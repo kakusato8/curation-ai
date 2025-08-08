@@ -5,6 +5,7 @@ import {
   ContentArchiveResponse, 
   ContentArchiveFilters 
 } from '../utils/api';
+import { formatDate, getDateGroupLabel, getDateKey, formatDateKey } from '../utils/dateUtils';
 
 interface ContentArchiveProps {
   onClose: () => void;
@@ -33,6 +34,9 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
   // View states
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
+  const [groupByDate, setGroupByDate] = useState(true);
+  const [consolidatedView, setConsolidatedView] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadContentArchive();
@@ -63,6 +67,10 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
 
   const applyFilters = () => {
     loadContentArchive();
+    // When applying filters with search text, expand all groups to show results
+    if (searchText.trim()) {
+      setCollapsedGroups(new Set());
+    }
   };
 
   const clearFilters = () => {
@@ -76,16 +84,6 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
     });
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('ja-JP', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   const truncateContent = (content: string, maxLength: number = 150) => {
     if (content.length <= maxLength) return content;
@@ -124,6 +122,104 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
     
     return content;
   }, [archiveData, filters]);
+
+  const groupedContent = useMemo(() => {
+    if (!groupByDate) {
+      return [{ group: 'all', label: 'すべてのコンテンツ', items: filteredContent }];
+    }
+    
+    const groups: { [key: string]: DeliveryLog[] } = {};
+    
+    filteredContent.forEach((item) => {
+      const groupLabel = getDateGroupLabel(item.deliveredAt);
+      if (!groups[groupLabel]) {
+        groups[groupLabel] = [];
+      }
+      groups[groupLabel].push(item);
+    });
+    
+    // Sort groups by chronological order
+    const sortedGroups = Object.entries(groups).sort(([labelA], [labelB]) => {
+      const orderMap: { [key: string]: number } = {
+        '今日': 1,
+        '昨日': 2,
+        '今週': 3,
+        '今月': 4
+      };
+      
+      const orderA = orderMap[labelA] || 999;
+      const orderB = orderMap[labelB] || 999;
+      
+      if (orderA !== 999 && orderB !== 999) {
+        return orderA - orderB;
+      }
+      
+      if (orderA !== 999) return -1;
+      if (orderB !== 999) return 1;
+      
+      // For year-month groups, sort descending
+      return labelB.localeCompare(labelA);
+    });
+    
+    return sortedGroups.map(([label, items]) => ({
+      group: label,
+      label,
+      items: items.sort((a, b) => {
+        const dateA = new Date(a.deliveredAt).getTime();
+        const dateB = new Date(b.deliveredAt).getTime();
+        return dateB - dateA; // Most recent first within each group
+      })
+    }));
+  }, [filteredContent, groupByDate]);
+
+  // Group content by exact dates for consolidated view
+  const consolidatedContent = useMemo(() => {
+    const groups: { [key: string]: DeliveryLog[] } = {};
+    
+    filteredContent.forEach((item) => {
+      const dateKey = getDateKey(item.deliveredAt);
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(item);
+    });
+    
+    // Sort by date (most recent first)
+    const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+    
+    return sortedDates.map(dateKey => ({
+      dateKey,
+      displayDate: formatDateKey(dateKey),
+      items: groups[dateKey].sort((a, b) => {
+        const dateA = new Date(a.deliveredAt).getTime();
+        const dateB = new Date(b.deliveredAt).getTime();
+        return dateA - dateB; // Chronological order within each day
+      })
+    }));
+  }, [filteredContent]);
+
+  const toggleGroup = (groupLabel: string) => {
+    setCollapsedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupLabel)) {
+        newSet.delete(groupLabel);
+      } else {
+        newSet.add(groupLabel);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllGroups = () => {
+    if (collapsedGroups.size === 0) {
+      // Collapse all groups
+      const allGroupLabels = groupedContent.map(group => group.label);
+      setCollapsedGroups(new Set(allGroupLabels));
+    } else {
+      // Expand all groups
+      setCollapsedGroups(new Set());
+    }
+  };
 
   // Content detail view
   if (selectedContent) {
@@ -211,6 +307,20 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                 title="リスト表示"
               >
                 ☰
+              </button>
+              <button 
+                className={`view-btn ${groupByDate ? 'active' : ''}`}
+                onClick={() => setGroupByDate(!groupByDate)}
+                title="日付グループ表示"
+              >
+                📅
+              </button>
+              <button 
+                className={`view-btn ${consolidatedView ? 'active' : ''}`}
+                onClick={() => setConsolidatedView(!consolidatedView)}
+                title="日次統合表示"
+              >
+                📖
               </button>
             </div>
             <button 
@@ -333,16 +443,188 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                 <span className="categories-count">
                   {archiveData.categories.length} カテゴリ
                 </span>
+                {groupByDate && (
+                  <span className="groups-count">
+                    {groupedContent.length} グループ
+                  </span>
+                )}
               </div>
 
-              <div className={`archive-content ${viewMode}`}>
-                {filteredContent.length === 0 ? (
-                  <div className="empty-state">
-                    <h4>コンテンツが見つかりません</h4>
-                    <p>フィルター条件を変更してみてください</p>
+              {filteredContent.length === 0 ? (
+                <div className="empty-state">
+                  <h4>コンテンツが見つかりません</h4>
+                  <p>フィルター条件を変更してみてください</p>
+                </div>
+              ) : consolidatedView ? (
+                <div className="consolidated-content">
+                  {consolidatedContent.map((dateGroup) => (
+                    <div key={dateGroup.dateKey} className="daily-consolidated-section">
+                      <div className="daily-consolidated-header">
+                        <h3 className="daily-date-title">
+                          {dateGroup.displayDate}
+                          <span className="daily-count">({dateGroup.items.length}件)</span>
+                        </h3>
+                        <div className="daily-actions">
+                          <button 
+                            className="btn-secondary small"
+                            onClick={() => {
+                              const allContent = dateGroup.items.map(item => 
+                                `【${item.categoryName}】 (${formatDate(item.deliveredAt)})\n${item.fullContent || ''}`
+                              ).join('\n\n---\n\n');
+                              navigator.clipboard.writeText(allContent);
+                            }}
+                            title="この日のすべてのコンテンツをコピー"
+                          >
+                            すべてコピー
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="daily-consolidated-content">
+                        {dateGroup.items.map((content, index) => (
+                          <div key={content.id} className="consolidated-item">
+                            <div className="consolidated-item-header">
+                              <div className="content-metadata">
+                                <span className="category-tag">{content.categoryName}</span>
+                                <span className="time-tag">{formatDate(content.deliveredAt)}</span>
+                              </div>
+                              <div className="item-actions">
+                                {content.geminiQuery && (
+                                  <button 
+                                    className="show-query-btn"
+                                    title="生成クエリを表示"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const button = e.target as HTMLElement;
+                                      const queryDiv = button.closest('.consolidated-item')?.querySelector('.item-query') as HTMLElement;
+                                      if (queryDiv) {
+                                        queryDiv.style.display = queryDiv.style.display === 'none' ? 'block' : 'none';
+                                      }
+                                    }}
+                                  >
+                                    Q
+                                  </button>
+                                )}
+                                <button 
+                                  className="copy-item-btn"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(content.fullContent || '');
+                                  }}
+                                  title="このコンテンツをコピー"
+                                >
+                                  コピー
+                                </button>
+                                <button 
+                                  className="expand-item-btn"
+                                  onClick={() => setSelectedContent(content)}
+                                  title="詳細表示"
+                                >
+                                  詳細
+                                </button>
+                              </div>
+                            </div>
+                            
+                            {content.geminiQuery && (
+                              <div className="item-query" style={{ display: 'none' }}>
+                                <small><strong>生成クエリ:</strong> {content.geminiQuery}</small>
+                              </div>
+                            )}
+                            
+                            <div className="consolidated-item-content">
+                              <div className="content-text-flow">
+                                {highlightSearchTerm(content.fullContent || '', searchText)}
+                              </div>
+                            </div>
+                            
+                            {index < dateGroup.items.length - 1 && (
+                              <div className="content-separator"></div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : groupByDate ? (
+                <>
+                  <div className="group-controls">
+                    <button 
+                      className="btn-secondary small"
+                      onClick={toggleAllGroups}
+                    >
+                      {collapsedGroups.size === 0 ? 'すべて折りたたむ' : 'すべて展開'}
+                    </button>
                   </div>
-                ) : (
-                  filteredContent.map((content) => (
+                  <div className="archive-content-grouped">
+                    {groupedContent.map((group) => (
+                    <div key={group.group} className="date-group">
+                      <div 
+                        className="date-group-header"
+                        onClick={() => toggleGroup(group.label)}
+                      >
+                        <h4 className="date-group-title">
+                          {group.label}
+                          <span className="group-count">({group.items.length})</span>
+                        </h4>
+                        <button className="group-toggle-btn">
+                          {collapsedGroups.has(group.label) ? '▶' : '▼'}
+                        </button>
+                      </div>
+                      
+                      {!collapsedGroups.has(group.label) && (
+                        <div className={`archive-content ${viewMode}`}>
+                          {group.items.map((content) => (
+                            <div 
+                              key={content.id} 
+                              className="archive-item"
+                              onClick={() => setSelectedContent(content)}
+                            >
+                              <div className="archive-item-header">
+                                <h5 className="category-name">
+                                  {highlightSearchTerm(content.categoryName || '不明なカテゴリ', searchText)}
+                                </h5>
+                                <span className="delivery-date">
+                                  {formatDate(content.deliveredAt)}
+                                </span>
+                              </div>
+                              
+                              <div className="archive-item-content">
+                                <p>
+                                  {highlightSearchTerm(
+                                    truncateContent(content.fullContent || ''),
+                                    searchText
+                                  )}
+                                </p>
+                              </div>
+                              
+                              {content.geminiQuery && (
+                                <div className="archive-item-query">
+                                  <small>
+                                    <strong>クエリ:</strong> {' '}
+                                    {highlightSearchTerm(
+                                      truncateContent(content.geminiQuery, 100),
+                                      searchText
+                                    )}
+                                  </small>
+                                </div>
+                              )}
+                              
+                              <div className="archive-item-actions">
+                                <button className="view-btn small">
+                                  詳細を見る →
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                </>
+              ) : (
+                <div className={`archive-content ${viewMode}`}>
+                  {filteredContent.map((content) => (
                     <div 
                       key={content.id} 
                       className="archive-item"
@@ -384,9 +666,9 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                         </button>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>
