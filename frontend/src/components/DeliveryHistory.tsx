@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient, DeliveryLog, DeliveryLogsFilters } from '../utils/api';
+import { formatDate } from '../utils/dateUtils';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface DeliveryHistoryProps {
   onClose: () => void;
@@ -71,15 +73,6 @@ const DeliveryHistory: React.FC<DeliveryHistoryProps> = ({ onClose, categoryName
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ja-JP', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
   
   const applyFilters = () => {
     loadDeliveryHistory();
@@ -182,7 +175,10 @@ const DeliveryHistory: React.FC<DeliveryHistoryProps> = ({ onClose, categoryName
                 <div className="log-content">
                   <h5>配信内容:</h5>
                   <div className="content-body">
-                    <pre>{selectedLog.fullContent}</pre>
+                    <MarkdownRenderer 
+                      content={selectedLog.fullContent} 
+                      className="content-markdown"
+                    />
                   </div>
                 </div>
               )}

@@ -28,18 +28,83 @@ let DeliveryController = class DeliveryController {
         await this.deliveryService.instantDelivery(req.user.uid);
         return { message: 'Instant delivery initiated for all settings' };
     }
-    async getDeliveryLogs(req) {
-        const logs = await this.deliveryService.getDeliveryLogs(req.user.uid);
+    async getDeliveryLogs(req, limit, status, deliveryType, startDate, endDate, searchText, categoryName, sortBy, sortOrder) {
+        const options = {
+            limit: limit ? parseInt(limit, 10) : 50,
+            status,
+            deliveryType,
+            startDate: startDate ? new Date(startDate) : undefined,
+            endDate: endDate ? new Date(endDate) : undefined,
+            searchText,
+            categoryName,
+            sortBy: sortBy || 'deliveredAt',
+            sortOrder: sortOrder || 'desc'
+        };
+        const logs = await this.deliveryService.getDeliveryLogs(req.user.uid, options);
         return { logs };
     }
+    async getDeliveryLogDetail(req, logId) {
+        const log = await this.deliveryService.getDeliveryLogById(req.user.uid, logId);
+        if (!log) {
+            return { error: 'Delivery log not found' };
+        }
+        return { log };
+    }
+    async getDeliveryHistory(req, categoryName, limit) {
+        const history = await this.deliveryService.getDeliveryHistoryByCategoryName(req.user.uid, decodeURIComponent(categoryName), limit ? parseInt(limit, 10) : 20);
+        return { history };
+    }
     // New endpoints for in-app content delivery
+    async instantContentDeliveryAll(req) {
+        const result = await this.deliveryService.instantContentDelivery(req.user.uid);
+        return result;
+    }
     async instantContentDeliverySetting(req, settingId) {
         const result = await this.deliveryService.instantContentDelivery(req.user.uid, settingId);
         return result;
     }
-    async instantContentDeliveryAll(req) {
-        const result = await this.deliveryService.instantContentDelivery(req.user.uid);
-        return result;
+    async getContentArchive(req, limit, categoryName, startDate, endDate, searchText, sortBy, sortOrder) {
+        const options = {
+            limit: limit ? parseInt(limit, 10) : 50,
+            categoryName,
+            startDate: startDate ? new Date(startDate) : undefined,
+            endDate: endDate ? new Date(endDate) : undefined,
+            searchText,
+            sortBy: sortBy || 'deliveredAt',
+            sortOrder: sortOrder || 'desc'
+        };
+        const archive = await this.deliveryService.getContentArchive(req.user.uid, options);
+        return archive;
+    }
+    async deleteDeliveryLog(req, logId) {
+        const result = await this.deliveryService.deleteDeliveryLog(req.user.uid, logId);
+        if (!result.success) {
+            return { error: result.error };
+        }
+        return { message: 'Content deleted successfully' };
+    }
+    async batchDeleteDeliveryLogs(req, body) {
+        console.log('=== BATCH DELETE CONTROLLER START ===');
+        console.log('Request user UID:', req.user.uid);
+        console.log('Request body:', body);
+        const { logIds } = body;
+        if (!logIds || !Array.isArray(logIds) || logIds.length === 0) {
+            console.log('Invalid logIds array, returning error');
+            return { error: 'logIds array is required and must not be empty' };
+        }
+        console.log('Calling deliveryService.batchDeleteDeliveryLogs with:', req.user.uid, logIds);
+        const result = await this.deliveryService.batchDeleteDeliveryLogs(req.user.uid, logIds);
+        console.log('Service returned result:', result);
+        const response = {
+            message: `${result.successful} content items deleted successfully`,
+            successful: result.successful,
+            failed: result.failed,
+            deletedIds: result.deletedIds,
+            errors: result.errors.length > 0 ? result.errors : undefined
+        };
+        console.log('Controller returning response:', response);
+        console.log('=== BATCH DELETE CONTROLLER END ===');
+        return response;
     }
 };
 exports.DeliveryController = DeliveryController;
@@ -61,10 +126,43 @@ __decorate([
 __decorate([
     (0, common_1.Get)('logs'),
     __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('status')),
+    __param(3, (0, common_1.Query)('deliveryType')),
+    __param(4, (0, common_1.Query)('startDate')),
+    __param(5, (0, common_1.Query)('endDate')),
+    __param(6, (0, common_1.Query)('searchText')),
+    __param(7, (0, common_1.Query)('categoryName')),
+    __param(8, (0, common_1.Query)('sortBy')),
+    __param(9, (0, common_1.Query)('sortOrder')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String, String, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], DeliveryController.prototype, "getDeliveryLogs", null);
+__decorate([
+    (0, common_1.Get)('logs/:logId'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('logId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], DeliveryController.prototype, "getDeliveryLogDetail", null);
+__decorate([
+    (0, common_1.Get)('history/:categoryName'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('categoryName')),
+    __param(2, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], DeliveryController.prototype, "getDeliveryHistory", null);
+__decorate([
+    (0, common_1.Post)('content/all'),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], DeliveryController.prototype, "getDeliveryLogs", null);
+], DeliveryController.prototype, "instantContentDeliveryAll", null);
 __decorate([
     (0, common_1.Post)('content/:settingId'),
     __param(0, (0, common_1.Request)()),
@@ -74,12 +172,35 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], DeliveryController.prototype, "instantContentDeliverySetting", null);
 __decorate([
-    (0, common_1.Post)('content/all'),
+    (0, common_1.Get)('archive'),
     __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('categoryName')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __param(5, (0, common_1.Query)('searchText')),
+    __param(6, (0, common_1.Query)('sortBy')),
+    __param(7, (0, common_1.Query)('sortOrder')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String, String, String, String, String, String, String]),
     __metadata("design:returntype", Promise)
-], DeliveryController.prototype, "instantContentDeliveryAll", null);
+], DeliveryController.prototype, "getContentArchive", null);
+__decorate([
+    (0, common_1.Delete)('logs/:logId'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('logId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], DeliveryController.prototype, "deleteDeliveryLog", null);
+__decorate([
+    (0, common_1.Delete)('logs/batch'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], DeliveryController.prototype, "batchDeleteDeliveryLogs", null);
 exports.DeliveryController = DeliveryController = __decorate([
     (0, common_1.Controller)('delivery'),
     (0, common_1.UseGuards)(auth_guard_1.AuthGuard),

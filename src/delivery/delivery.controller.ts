@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { DeliveryService } from './delivery.service';
 import { AuthGuard } from '../auth/auth.guard';
 
@@ -20,8 +20,34 @@ export class DeliveryController {
   }
 
   @Get('logs')
-  async getDeliveryLogs(@Request() req) {
-    const logs = await this.deliveryService.getDeliveryLogs(req.user.uid);
+  async getDeliveryLogs(@Request() req, @Query('limit') limit?: string) {
+    const logs = await this.deliveryService.getDeliveryLogs(
+      req.user.uid, 
+      limit ? parseInt(limit, 10) : 50
+    );
     return { logs };
+  }
+
+  @Get('logs/:logId')
+  async getDeliveryLogDetail(@Request() req, @Param('logId') logId: string) {
+    const log = await this.deliveryService.getDeliveryLogById(req.user.uid, logId);
+    if (!log) {
+      return { error: 'Delivery log not found' };
+    }
+    return { log };
+  }
+
+  @Get('history/:categoryName')
+  async getDeliveryHistory(
+    @Request() req, 
+    @Param('categoryName') categoryName: string,
+    @Query('limit') limit?: string
+  ) {
+    const history = await this.deliveryService.getDeliveryHistoryByCategoryName(
+      req.user.uid, 
+      decodeURIComponent(categoryName),
+      limit ? parseInt(limit, 10) : 20
+    );
+    return { history };
   }
 }

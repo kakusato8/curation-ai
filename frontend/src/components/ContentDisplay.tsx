@@ -1,5 +1,7 @@
 import React from 'react';
 import { DeliveryContentResponse, BatchDeliveryResponse } from '../utils/api';
+import { formatDate } from '../utils/dateUtils';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface ContentDisplayProps {
   content: DeliveryContentResponse | BatchDeliveryResponse | null;
@@ -22,9 +24,6 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
     return content && 'contents' in content;
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ja-JP');
-  };
 
   return (
     <div className="content-display-overlay">
@@ -95,7 +94,10 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
                             <small>クエリ: {item.query}</small>
                           </div>
                           <div className="content-body">
-                            <pre>{item.content}</pre>
+                            <MarkdownRenderer 
+                              content={item.content || ''} 
+                              className="content-markdown"
+                            />
                           </div>
                           <div className="content-footer">
                             <small>生成日時: {formatDate(item.generatedAt)}</small>
@@ -114,7 +116,10 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
                   
                   {content.success ? (
                     <div className="content-body">
-                      <pre>{content.content}</pre>
+                      <MarkdownRenderer 
+                        content={content.content || ''} 
+                        className="content-markdown"
+                      />
                     </div>
                   ) : (
                     <div className="error-state">

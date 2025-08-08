@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Param, Query, UseGuards, Request, Body } from '@nestjs/common';
 import { DeliveryService } from './delivery.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { AuthenticatedRequest } from '../common/interfaces/request.interface';
@@ -74,16 +74,16 @@ export class DeliveryController {
   }
 
   // New endpoints for in-app content delivery
-  @Post('content/:settingId')
-  async instantContentDeliverySetting(@Request() req: AuthenticatedRequest, @Param('settingId') settingId: string): Promise<DeliveryContentResponse> {
-    const result = await this.deliveryService.instantContentDelivery(req.user.uid, settingId);
-    return result as DeliveryContentResponse;
-  }
-
   @Post('content/all')
   async instantContentDeliveryAll(@Request() req: AuthenticatedRequest): Promise<BatchDeliveryResponse> {
     const result = await this.deliveryService.instantContentDelivery(req.user.uid);
     return result as BatchDeliveryResponse;
+  }
+
+  @Post('content/:settingId')
+  async instantContentDeliverySetting(@Request() req: AuthenticatedRequest, @Param('settingId') settingId: string): Promise<DeliveryContentResponse> {
+    const result = await this.deliveryService.instantContentDelivery(req.user.uid, settingId);
+    return result as DeliveryContentResponse;
   }
 
   @Get('archive')
@@ -109,5 +109,47 @@ export class DeliveryController {
     
     const archive = await this.deliveryService.getContentArchive(req.user.uid, options);
     return archive;
+  }
+
+  @Delete('logs/:logId')
+  async deleteDeliveryLog(@Request() req: AuthenticatedRequest, @Param('logId') logId: string) {
+    const result = await this.deliveryService.deleteDeliveryLog(req.user.uid, logId);
+    if (!result.success) {
+      return { error: result.error };
+    }
+    return { message: 'Content deleted successfully' };
+  }
+
+  @Delete('logs/batch')
+  async batchDeleteDeliveryLogs(
+    @Request() req: AuthenticatedRequest, 
+    @Body() body: { logIds: string[] }
+  ) {
+    console.log('=== BATCH DELETE CONTROLLER START ===');
+    console.log('Request user UID:', req.user.uid);
+    console.log('Request body:', body);
+    
+    const { logIds } = body;
+    
+    if (!logIds || !Array.isArray(logIds) || logIds.length === 0) {
+      console.log('Invalid logIds array, returning error');
+      return { error: 'logIds array is required and must not be empty' };
+    }
+
+    console.log('Calling deliveryService.batchDeleteDeliveryLogs with:', req.user.uid, logIds);
+    const result = await this.deliveryService.batchDeleteDeliveryLogs(req.user.uid, logIds);
+    console.log('Service returned result:', result);
+    
+    const response = {
+      message: `${result.successful} content items deleted successfully`,
+      successful: result.successful,
+      failed: result.failed,
+      deletedIds: result.deletedIds,
+      errors: result.errors.length > 0 ? result.errors : undefined
+    };
+    
+    console.log('Controller returning response:', response);
+    console.log('=== BATCH DELETE CONTROLLER END ===');
+    return response;
   }
 }

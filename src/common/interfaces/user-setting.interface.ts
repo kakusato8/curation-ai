@@ -15,11 +15,17 @@ export interface UserSettings {
 }
 
 export interface DeliveryLog {
+  id?: string;
   userId: string;
   settingId?: string;
+  categoryName?: string;
+  geminiQuery?: string;
   deliveryType: 'scheduled' | 'instant';
   status: 'success' | 'failed';
   errorMessage?: string;
   deliveredAt: Date;
   contentSummary?: string;
+  fullContent?: string; // 配信内容の全文保存
+  recipientEmail?: string;
+  generatedAt?: Date;
 }

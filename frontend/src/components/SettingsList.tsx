@@ -8,6 +8,7 @@ interface SettingsListProps {
   onRefresh: () => void;
   onInstantContent: (settingId: string) => void;
   onBatchContent: () => void;
+  onShowHistory?: (categoryName: string) => void;
 }
 
 export const SettingsList: React.FC<SettingsListProps> = ({ 
@@ -16,7 +17,8 @@ export const SettingsList: React.FC<SettingsListProps> = ({
   onDelete, 
   onRefresh,
   onInstantContent,
-  onBatchContent
+  onBatchContent,
+  onShowHistory
 }) => {
   const [loadingDelivery, setLoadingDelivery] = useState<string | null>(null);
 
@@ -101,6 +103,14 @@ export const SettingsList: React.FC<SettingsListProps> = ({
               >
                 コンテンツ生成
               </button>
+              {onShowHistory && (
+                <button
+                  className="btn-secondary small"
+                  onClick={() => onShowHistory(setting.categoryName)}
+                >
+                  履歴を見る
+                </button>
+              )}
             </div>
           </div>
         ))}

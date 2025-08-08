@@ -17,7 +17,6 @@ export const Dashboard: React.FC = () => {
   const [editingSetting, setEditingSetting] = useState<UserSetting | undefined>();
   const [activeTab, setActiveTab] = useState<'settings' | 'logs' | 'archive'>('settings');
   const [showHistory, setShowHistory] = useState(false);
-  const [showArchive, setShowArchive] = useState(false);
   const [historyCategory, setHistoryCategory] = useState<string | undefined>();
   
   // Content display state
@@ -170,13 +169,6 @@ export const Dashboard: React.FC = () => {
     setHistoryCategory(undefined);
   };
   
-  const handleShowArchive = () => {
-    setShowArchive(true);
-  };
-  
-  const handleCloseArchive = () => {
-    setShowArchive(false);
-  };
 
   if (loading) {
     return <div className="dashboard loading">読み込み中...</div>;
@@ -266,48 +258,9 @@ export const Dashboard: React.FC = () => {
         )}
         
         {activeTab === 'archive' && (
-          <div className="archive-section">
-            <div className="archive-intro">
-              <h3>コンテンツライブラリ</h3>
-              <p>これまでに生成されたすべてのコンテンツを閲覧、検索、管理できます。</p>
-            </div>
-            
-            <div className="archive-actions">
-              <button 
-                className="btn-primary"
-                onClick={handleShowArchive}
-              >
-                コンテンツライブラリを開く
-              </button>
-              <button 
-                className="btn-secondary"
-                onClick={() => handleShowHistory()}
-              >
-                配信履歴も見る
-              </button>
-            </div>
-            
-            <div className="archive-features">
-              <div className="feature-list">
-                <div className="feature-item">
-                  <h4>📚 完全なコンテンツアーカイブ</h4>
-                  <p>生成されたすべてのコンテンツを永続的に保存・閲覧</p>
-                </div>
-                <div className="feature-item">
-                  <h4>🔍 高度な検索機能</h4>
-                  <p>コンテンツ、カテゴリ、クエリをキーワードで検索</p>
-                </div>
-                <div className="feature-item">
-                  <h4>📅 日付範囲フィルター</h4>
-                  <p>特定の期間に生成されたコンテンツを絞り込み</p>
-                </div>
-                <div className="feature-item">
-                  <h4>📋 カテゴリ別整理</h4>
-                  <p>設定したカテゴリごとにコンテンツを整理・表示</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ContentArchive 
+            onClose={() => setActiveTab('settings')}
+          />
         )}
       </main>
 
@@ -329,12 +282,6 @@ export const Dashboard: React.FC = () => {
         />
       )}
       
-      {/* Content Archive Modal */}
-      {showArchive && (
-        <ContentArchive
-          onClose={handleCloseArchive}
-        />
-      )}
     </div>
   );
 };

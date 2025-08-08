@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { SettingsService } from '../settings/settings.service';
 import { GeminiService } from '../gemini/gemini.service';
-import { UserSettings, UserSetting, DeliveryLog } from '../common/interfaces/user-setting.interface';
+import { UserSettings, UserSetting, DeliveryLog, BatchDeleteResponse } from '../common/interfaces/user-setting.interface';
 import { DeliveryContentResponse, BatchDeliveryResponse } from './dto/delivery-content.dto';
 
 @Injectable()
@@ -273,100 +273,187 @@ export class DeliveryService {
       sortOrder?: 'asc' | 'desc';
     } = {}
   ): Promise<DeliveryLog[]> {
+    const {
+      limit = 50,
+      status,
+      deliveryType,
+      startDate,
+      endDate,
+      searchText,
+      categoryName,
+      sortBy = 'deliveredAt',
+      sortOrder = 'desc'
+    } = options;
+    
+    this.logger.log(`Getting delivery logs for user ${userId} with filters:`, { 
+      limit, status, deliveryType, startDate, endDate, searchText, categoryName 
+    });
+    
     try {
-      const {
-        limit = 50,
-        status,
-        deliveryType,
-        startDate,
-        endDate,
-        searchText,
-        categoryName,
-        sortBy = 'deliveredAt',
-        sortOrder = 'desc'
-      } = options;
-      
-      this.logger.log(`Getting delivery logs for user ${userId} with filters:`, { 
-        limit, status, deliveryType, startDate, endDate, searchText, categoryName 
-      });
-      
       const firestore = this.firebaseService.getFirestore();
-      let query = firestore
+      
+      // Use simple query with only userId filter and orderBy to avoid composite index requirements
+      // Fetch more records to allow for client-side filtering
+      const fetchLimit = Math.max(limit * 2, 100); // Fetch extra to account for filtering
+      
+      const logsSnapshot = await firestore
         .collection('delivery_logs')
-        .where('userId', '==', userId);
-
-      // Apply filters
-      if (status) {
-        query = query.where('status', '==', status);
-      }
-      
-      if (deliveryType) {
-        query = query.where('deliveryType', '==', deliveryType);
-      }
-      
-      if (categoryName) {
-        query = query.where('categoryName', '==', categoryName);
-      }
-
-      // Date range filtering
-      if (startDate) {
-        query = query.where(sortBy, '>=', startDate);
-      }
-      
-      if (endDate) {
-        query = query.where(sortBy, '<=', endDate);
-      }
-
-      // Apply sorting and limit
-      query = query.orderBy(sortBy, sortOrder).limit(limit);
-
-      const logsSnapshot = await query.get();
+        .where('userId', '==', userId)
+        .orderBy(sortBy, sortOrder)
+        .limit(fetchLimit)
+        .get();
       
       let results = logsSnapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data() 
       } as DeliveryLog));
 
-      // Apply text search filtering (done in-memory since Firestore doesn't support full-text search)
-      if (searchText) {
-        const searchLower = searchText.toLowerCase();
-        results = results.filter(log => 
-          (log.categoryName?.toLowerCase().includes(searchLower)) ||
-          (log.contentSummary?.toLowerCase().includes(searchLower)) ||
-          (log.fullContent?.toLowerCase().includes(searchLower)) ||
-          (log.geminiQuery?.toLowerCase().includes(searchLower))
-        );
-      }
+      // Apply all filters client-side
+      results = this.applyClientSideFilters(results, {
+        status,
+        deliveryType,
+        startDate,
+        endDate,
+        searchText,
+        categoryName,
+        sortBy,
+        sortOrder
+      });
 
-      this.logger.log(`Found ${results.length} delivery logs for user ${userId}`);
+      // Apply limit after filtering
+      results = results.slice(0, limit);
+
+      this.logger.log(`Found ${results.length} delivery logs for user ${userId} after filtering`);
       return results;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to get delivery logs for user ${userId}: ${errorMessage}`);
       
-      // Fallback to simpler query if complex query fails
+      // Fallback to even simpler query if needed
       if (errorMessage.includes('index') || errorMessage.includes('requires an index')) {
-        this.logger.warn('Composite index may be missing, trying simpler query');
-        return this.getDeliveryLogsSimple(userId, options.limit || 50);
+        this.logger.warn('Trying fallback query without orderBy');
+        return this.getDeliveryLogsFallback(userId, options);
       }
       
       throw new Error(`Failed to get delivery logs: ${errorMessage}`);
     }
   }
-  
-  private async getDeliveryLogsSimple(userId: string, limit: number): Promise<DeliveryLog[]> {
-    const firestore = this.firebaseService.getFirestore();
-    const logsSnapshot = await firestore
-      .collection('delivery_logs')
-      .where('userId', '==', userId)
-      .orderBy('deliveredAt', 'desc')
-      .limit(limit)
-      .get();
 
-    return logsSnapshot.docs.map(doc => ({ 
-      id: doc.id, 
-      ...doc.data() 
-    } as DeliveryLog));
+  private applyClientSideFilters(
+    logs: DeliveryLog[], 
+    filters: {
+      status?: 'success' | 'failed';
+      deliveryType?: 'scheduled' | 'instant';
+      startDate?: Date;
+      endDate?: Date;
+      searchText?: string;
+      categoryName?: string;
+      sortBy?: 'deliveredAt' | 'generatedAt';
+      sortOrder?: 'asc' | 'desc';
+    }
+  ): DeliveryLog[] {
+    let results = logs;
+
+    // Apply status filter
+    if (filters.status) {
+      results = results.filter(log => log.status === filters.status);
+    }
+
+    // Apply delivery type filter
+    if (filters.deliveryType) {
+      results = results.filter(log => log.deliveryType === filters.deliveryType);
+    }
+
+    // Apply category filter
+    if (filters.categoryName) {
+      results = results.filter(log => log.categoryName === filters.categoryName);
+    }
+
+    // Apply date range filters
+    if (filters.startDate || filters.endDate) {
+      results = results.filter(log => {
+        const logDate = filters.sortBy === 'generatedAt' && log.generatedAt 
+          ? new Date(log.generatedAt)
+          : new Date(log.deliveredAt);
+        
+        if (filters.startDate && logDate < filters.startDate) return false;
+        if (filters.endDate && logDate > filters.endDate) return false;
+        return true;
+      });
+    }
+
+    // Apply text search filter
+    if (filters.searchText) {
+      const searchLower = filters.searchText.toLowerCase();
+      results = results.filter(log => 
+        (log.categoryName?.toLowerCase().includes(searchLower)) ||
+        (log.contentSummary?.toLowerCase().includes(searchLower)) ||
+        (log.fullContent?.toLowerCase().includes(searchLower)) ||
+        (log.geminiQuery?.toLowerCase().includes(searchLower))
+      );
+    }
+
+    return results;
+  }
+
+  private async getDeliveryLogsFallback(
+    userId: string, 
+    options: {
+      limit?: number;
+      status?: 'success' | 'failed';
+      deliveryType?: 'scheduled' | 'instant';
+      startDate?: Date;
+      endDate?: Date;
+      searchText?: string;
+      categoryName?: string;
+      sortBy?: 'deliveredAt' | 'generatedAt';
+      sortOrder?: 'asc' | 'desc';
+    }
+  ): Promise<DeliveryLog[]> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      const fetchLimit = Math.max((options.limit || 50) * 2, 100);
+      
+      // Simplest possible query - just userId filter
+      const logsSnapshot = await firestore
+        .collection('delivery_logs')
+        .where('userId', '==', userId)
+        .limit(fetchLimit)
+        .get();
+      
+      let results = logsSnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as DeliveryLog));
+
+      // Apply all filtering and sorting client-side
+      results = this.applyClientSideFilters(results, options);
+
+      // Sort client-side
+      const sortBy = options.sortBy || 'deliveredAt';
+      const sortOrder = options.sortOrder || 'desc';
+      results.sort((a, b) => {
+        const aVal = sortBy === 'generatedAt' && a.generatedAt 
+          ? new Date(a.generatedAt).getTime()
+          : new Date(a.deliveredAt).getTime();
+        const bVal = sortBy === 'generatedAt' && b.generatedAt 
+          ? new Date(b.generatedAt).getTime()
+          : new Date(b.deliveredAt).getTime();
+        
+        const result = aVal - bVal;
+        return sortOrder === 'desc' ? -result : result;
+      });
+
+      // Apply limit
+      results = results.slice(0, options.limit || 50);
+
+      this.logger.log(`Fallback query returned ${results.length} delivery logs for user ${userId}`);
+      return results;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Fallback query failed for user ${userId}: ${errorMessage}`);
+      throw new Error(`Failed to get delivery logs: ${errorMessage}`);
+    }
   }
 
   async getDeliveryLogById(userId: string, logId: string): Promise<DeliveryLog | null> {
@@ -477,6 +564,12 @@ export class DeliveryService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to get content archive for user ${userId}: ${errorMessage}`);
+      
+      // If the error is related to index issues, provide a more helpful error message
+      if (errorMessage.includes('index') || errorMessage.includes('requires an index')) {
+        this.logger.warn('Content archive failed due to index requirements, but this should be handled by fallback queries');
+      }
+      
       throw new Error(`Failed to get content archive: ${errorMessage}`);
     }
   }
@@ -486,76 +579,176 @@ export class DeliveryService {
     categoryName: string, 
     limit: number = 20
   ): Promise<DeliveryLog[]> {
+    this.logger.log(`Getting delivery history for user ${userId}, category: ${categoryName}, limit: ${limit}`);
+    
     try {
-      this.logger.log(`Getting delivery history for user ${userId}, category: ${categoryName}, limit: ${limit}`);
-      
       const firestore = this.firebaseService.getFirestore();
       
-      // First try without status filter to see if we have any data
-      const testSnapshot = await firestore
-        .collection('delivery_logs')
-        .where('userId', '==', userId)
-        .limit(1)
-        .get();
+      // Use simple query to avoid composite index requirements
+      // Fetch extra records to account for filtering
+      const fetchLimit = Math.max(limit * 3, 50);
       
-      this.logger.log(`Test query found ${testSnapshot.docs.length} documents for user ${userId}`);
-      
-      if (testSnapshot.docs.length === 0) {
-        this.logger.warn(`No delivery logs found for user ${userId}`);
-        return [];
-      }
-      
-      // Now try the full query
       const logsSnapshot = await firestore
         .collection('delivery_logs')
         .where('userId', '==', userId)
-        .where('categoryName', '==', categoryName)
-        .where('status', '==', 'success')
         .orderBy('deliveredAt', 'desc')
-        .limit(limit)
+        .limit(fetchLimit)
         .get();
+      
+      // Apply client-side filtering for category and status
+      const filteredResults = logsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as DeliveryLog))
+        .filter(log => log.categoryName === categoryName && log.status === 'success')
+        .slice(0, limit);
 
-      this.logger.log(`Found ${logsSnapshot.docs.length} delivery logs for user ${userId}, category: ${categoryName}`);
-
-      return logsSnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      } as DeliveryLog));
+      this.logger.log(`Found ${filteredResults.length} delivery logs for user ${userId}, category: ${categoryName}`);
+      return filteredResults;
+      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to get delivery history for user ${userId}, category ${categoryName}: ${errorMessage}`);
       
-      // If it's an index error, try a simpler query
+      // If orderBy also fails due to index issues, try the simplest query
       if (errorMessage.includes('index') || errorMessage.includes('requires an index')) {
-        this.logger.warn('Composite index may be missing, trying simpler query');
-        try {
-          const firestore = this.firebaseService.getFirestore();
-          const simpleSnapshot = await firestore
-            .collection('delivery_logs')
-            .where('userId', '==', userId)
-            .orderBy('deliveredAt', 'desc')
-            .limit(limit)
-            .get();
-          
-          // Filter in memory for category and status
-          const filteredDocs = simpleSnapshot.docs.filter(doc => {
-            const data = doc.data();
-            return data.categoryName === categoryName && data.status === 'success';
-          });
-          
-          this.logger.log(`Fallback query returned ${filteredDocs.length} filtered results`);
-          
-          return filteredDocs.map(doc => ({ 
-            id: doc.id, 
-            ...doc.data() 
-          } as DeliveryLog));
-        } catch (fallbackError) {
-          this.logger.error(`Fallback query also failed: ${fallbackError}`);
-          throw new Error(`Failed to get delivery history: ${errorMessage}`);
-        }
+        this.logger.warn('OrderBy may require index, trying simplest query');
+        return this.getDeliveryHistorySimple(userId, categoryName, limit);
       }
       
       throw new Error(`Failed to get delivery history: ${errorMessage}`);
     }
+  }
+
+  private async getDeliveryHistorySimple(
+    userId: string, 
+    categoryName: string, 
+    limit: number
+  ): Promise<DeliveryLog[]> {
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      // Simplest possible query - just userId filter
+      const fetchLimit = Math.max(limit * 5, 100); // Fetch even more for filtering
+      const logsSnapshot = await firestore
+        .collection('delivery_logs')
+        .where('userId', '==', userId)
+        .limit(fetchLimit)
+        .get();
+      
+      // Apply all filtering and sorting client-side
+      const results = logsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as DeliveryLog))
+        .filter(log => log.categoryName === categoryName && log.status === 'success')
+        .sort((a, b) => {
+          const aTime = new Date(a.deliveredAt).getTime();
+          const bTime = new Date(b.deliveredAt).getTime();
+          return bTime - aTime; // desc order
+        })
+        .slice(0, limit);
+      
+      this.logger.log(`Simple query returned ${results.length} filtered results for user ${userId}, category: ${categoryName}`);
+      return results;
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Simple query failed for user ${userId}, category ${categoryName}: ${errorMessage}`);
+      throw new Error(`Failed to get delivery history: ${errorMessage}`);
+    }
+  }
+
+  // Delete methods for content management
+  async deleteDeliveryLog(
+    userId: string, 
+    logId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    this.logger.log(`=== SINGLE DELETE START === User: ${userId}, LogId: ${logId}`);
+    
+    try {
+      const firestore = this.firebaseService.getFirestore();
+      
+      // First, verify the log exists and belongs to the user
+      const docRef = firestore.collection('delivery_logs').doc(logId);
+      const docSnapshot = await docRef.get();
+      
+      this.logger.log(`Document exists: ${docSnapshot.exists}`);
+      
+      if (!docSnapshot.exists) {
+        this.logger.warn(`Delivery log ${logId} not found`);
+        return { success: false, error: 'Content not found' };
+      }
+
+      const logData = docSnapshot.data() as DeliveryLog;
+      this.logger.log(`Document data userId: ${logData.userId}, requesting userId: ${userId}`);
+      
+      // Security check: ensure user ID matches
+      if (logData.userId !== userId) {
+        this.logger.error(`Unauthorized deletion attempt: User ${userId} tried to delete log ${logId} owned by ${logData.userId}`);
+        return { success: false, error: 'Unauthorized: You can only delete your own content' };
+      }
+
+      // Delete the document
+      this.logger.log(`Deleting document ${logId}...`);
+      await docRef.delete();
+      
+      this.logger.log(`=== SINGLE DELETE SUCCESS === LogId: ${logId} deleted successfully`);
+      return { success: true };
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`=== SINGLE DELETE FAILED === LogId: ${logId}, Error: ${errorMessage}`);
+      return { success: false, error: `Failed to delete content: ${errorMessage}` };
+    }
+  }
+
+  async batchDeleteDeliveryLogs(
+    userId: string, 
+    logIds: string[]
+  ): Promise<BatchDeleteResponse> {
+    this.logger.log(`=== BATCH DELETE START === User: ${userId}, LogIds: ${logIds.join(', ')}`);
+    
+    const results = {
+      successful: 0,
+      failed: 0,
+      deletedIds: [] as string[],
+      errors: [] as Array<{ logId: string; error: string }>
+    };
+    
+    this.logger.log('Initial results object:', results);
+    
+    // Process deletions sequentially to avoid overwhelming Firestore
+    for (const logId of logIds) {
+      this.logger.log(`Processing deletion for logId: ${logId}`);
+      try {
+        const result = await this.deleteDeliveryLog(userId, logId);
+        this.logger.log(`Single delete result for ${logId}:`, result);
+        
+        if (result.success) {
+          results.successful++;
+          results.deletedIds.push(logId);
+          this.logger.log(`Successfully deleted ${logId}, adding to deletedIds. Current deletedIds:`, results.deletedIds);
+        } else {
+          results.failed++;
+          results.errors.push({
+            logId,
+            error: result.error || 'Unknown error'
+          });
+          this.logger.log(`Failed to delete ${logId}, error: ${result.error}`);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        results.failed++;
+        results.errors.push({
+          logId,
+          error: errorMessage
+        });
+        this.logger.error(`Exception during deletion of log ${logId}: ${errorMessage}`);
+      }
+    }
+
+    this.logger.log('Final batch delete results:', results);
+    this.logger.log(
+      `=== BATCH DELETE COMPLETE === User: ${userId}, Successful: ${results.successful}, Failed: ${results.failed}, DeletedIds: [${results.deletedIds.join(', ')}]`
+    );
+    
+    return results;
   }
 }

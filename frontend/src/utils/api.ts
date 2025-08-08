@@ -189,7 +189,7 @@ class ApiClient {
   }
 
   // Content archive methods
-  async getContentArchive(filters?: ContentArchiveFilters): Promise<ContentArchiveResponse> {
+  async getContentArchive(filters?: ContentArchiveFilters, forceRefresh?: boolean): Promise<ContentArchiveResponse> {
     const params = new URLSearchParams();
     
     if (filters) {
@@ -202,8 +202,57 @@ class ApiClient {
       if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
     }
     
+    // Add cache bust parameter for force refresh
+    if (forceRefresh) {
+      params.append('_t', Date.now().toString());
+    }
+    
     const queryString = params.toString();
-    return this.request<ContentArchiveResponse>(`/delivery/archive${queryString ? '?' + queryString : ''}`);
+    const requestOptions: RequestInit = {};
+    
+    // Add cache control headers for force refresh
+    if (forceRefresh) {
+      requestOptions.headers = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      };
+    }
+    
+    return this.request<ContentArchiveResponse>(`/delivery/archive${queryString ? '?' + queryString : ''}`, requestOptions);
+  }
+
+  // Delete content methods
+  async deleteDeliveryLog(logId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/delivery/logs/${logId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async batchDeleteDeliveryLogs(logIds: string[]): Promise<{
+    message: string;
+    successful: number;
+    failed: number;
+    deletedIds: string[];
+    errors?: Array<{ logId: string; error: string }>;
+  }> {
+    console.log('=== API CLIENT BATCH DELETE START ===');
+    console.log('Sending logIds to API:', logIds);
+    
+    const result = await this.request<{
+      message: string;
+      successful: number;
+      failed: number;
+      deletedIds: string[];
+      errors?: Array<{ logId: string; error: string }>;
+    }>('/delivery/logs/batch', {
+      method: 'DELETE',
+      body: JSON.stringify({ logIds }),
+    });
+    
+    console.log('API response received:', result);
+    console.log('=== API CLIENT BATCH DELETE END ===');
+    return result;
   }
 
   // Auth API

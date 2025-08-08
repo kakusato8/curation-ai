@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DeliveryLog, apiClient } from '../utils/api-workers';
+import { formatDate } from '../utils/dateUtils';
 
 export const DeliveryLogsWorkers: React.FC = () => {
   const [logs, setLogs] = useState<DeliveryLog[]>([]);
@@ -24,9 +25,6 @@ export const DeliveryLogsWorkers: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ja-JP');
-  };
 
   const getStatusText = (status: string) => {
     return status === 'success' ? '成功' : '失敗';

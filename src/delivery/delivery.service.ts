@@ -102,11 +102,16 @@ export class DeliveryService {
     setting: UserSetting,
     deliveryType: 'scheduled' | 'instant',
   ): Promise<void> {
+    const generatedAt = new Date();
     const logEntry: Partial<DeliveryLog> = {
       userId,
       settingId: setting.id,
+      categoryName: setting.categoryName,
+      geminiQuery: setting.geminiQuery,
       deliveryType,
       deliveredAt: new Date(),
+      recipientEmail: userEmail,
+      generatedAt,
     };
 
     try {
@@ -123,7 +128,8 @@ export class DeliveryService {
       );
 
       logEntry.status = 'success';
-      logEntry.contentSummary = content.substring(0, 100) + '...';
+      logEntry.contentSummary = content.substring(0, 200) + (content.length > 200 ? '...' : '');
+      logEntry.fullContent = content; // 全文保存
       
       this.logger.log(`Successfully delivered ${setting.categoryName} to ${userEmail}`);
     } catch (error) {
@@ -139,7 +145,9 @@ export class DeliveryService {
   private async saveDeliveryLog(log: DeliveryLog): Promise<void> {
     try {
       const firestore = this.firebaseService.getFirestore();
-      await firestore.collection('delivery_logs').add(log);
+      const docRef = await firestore.collection('delivery_logs').add(log);
+      // ドキュメントIDを後で更新
+      await docRef.update({ id: docRef.id });
     } catch (error) {
       this.logger.error(`Failed to save delivery log: ${error.message}`);
     }
@@ -154,6 +162,51 @@ export class DeliveryService {
       .limit(limit)
       .get();
 
-    return logsSnapshot.docs.map(doc => doc.data() as DeliveryLog);
+    return logsSnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as DeliveryLog));
+  }
+
+  async getDeliveryLogById(userId: string, logId: string): Promise<DeliveryLog | null> {
+    const firestore = this.firebaseService.getFirestore();
+    const docSnapshot = await firestore
+      .collection('delivery_logs')
+      .doc(logId)
+      .get();
+
+    if (!docSnapshot.exists) {
+      return null;
+    }
+
+    const data = docSnapshot.data() as DeliveryLog;
+    
+    // セキュリティチェック: ユーザーIDが一致するかの確認
+    if (data.userId !== userId) {
+      throw new Error('Unauthorized access to delivery log');
+    }
+
+    return { id: docSnapshot.id, ...data };
+  }
+
+  async getDeliveryHistoryByCategoryName(
+    userId: string, 
+    categoryName: string, 
+    limit: number = 20
+  ): Promise<DeliveryLog[]> {
+    const firestore = this.firebaseService.getFirestore();
+    const logsSnapshot = await firestore
+      .collection('delivery_logs')
+      .where('userId', '==', userId)
+      .where('categoryName', '==', categoryName)
+      .where('status', '==', 'success')
+      .orderBy('deliveredAt', 'desc')
+      .limit(limit)
+      .get();
+
+    return logsSnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as DeliveryLog));
   }
 }

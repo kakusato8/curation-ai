@@ -6,9 +6,10 @@ import {
   ContentArchiveFilters 
 } from '../utils/api';
 import { formatDate, getDateGroupLabel, getDateKey, formatDateKey } from '../utils/dateUtils';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface ContentArchiveProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
@@ -16,6 +17,13 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
   const [selectedContent, setSelectedContent] = useState<DeliveryLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Delete states
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'batch'; logId?: string; logIds?: string[] } | null>(null);
   
   // Filter states
   const [filters, setFilters] = useState<ContentArchiveFilters>({
@@ -42,7 +50,7 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
     loadContentArchive();
   }, []);
 
-  const loadContentArchive = async () => {
+  const loadContentArchive = async (forceRefresh: boolean = false) => {
     try {
       setLoading(true);
       setError(null);
@@ -55,7 +63,7 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
         endDate: dateRange.end ? new Date(dateRange.end) : undefined,
       };
 
-      const response = await apiClient.getContentArchive(filterOptions);
+      const response = await apiClient.getContentArchive(filterOptions, forceRefresh);
       setArchiveData(response);
     } catch (err) {
       setError('コンテンツアーカイブの読み込みに失敗しました');
@@ -71,6 +79,9 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
     if (searchText.trim()) {
       setCollapsedGroups(new Set());
     }
+    // Clear selection when applying filters
+    setSelectedItems(new Set());
+    setSelectionMode(false);
   };
 
   const clearFilters = () => {
@@ -82,6 +93,9 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
       sortBy: 'deliveredAt',
       sortOrder: 'desc'
     });
+    // Clear selection when clearing filters
+    setSelectedItems(new Set());
+    setSelectionMode(false);
   };
 
 
@@ -221,6 +235,128 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
     }
   };
 
+  // Delete functions
+  const handleDeleteSingle = (logId: string) => {
+    setDeleteTarget({ type: 'single', logId });
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteBatch = () => {
+    const logIds = Array.from(selectedItems);
+    console.log('=== HANDLE DELETE BATCH ===');
+    console.log('Selected items set:', selectedItems);
+    console.log('LogIds array:', logIds);
+    console.log('LogIds count:', logIds.length);
+    
+    if (logIds.length === 0) {
+      console.log('No items selected, returning early');
+      return;
+    }
+    
+    setDeleteTarget({ type: 'batch', logIds });
+    setShowDeleteConfirm(true);
+    console.log('Delete confirmation dialog shown');
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    console.log('=== DELETE OPERATION START ===');
+    console.log('Delete target:', deleteTarget);
+    console.log('Current archive data logs count:', archiveData?.logs.length);
+
+    try {
+      setDeleteLoading(true);
+      
+      let deletedIds: string[] = [];
+      
+      if (deleteTarget.type === 'single' && deleteTarget.logId) {
+        console.log('Performing single delete for logId:', deleteTarget.logId);
+        await apiClient.deleteDeliveryLog(deleteTarget.logId);
+        deletedIds = [deleteTarget.logId];
+        console.log('Single delete successful, deletedIds:', deletedIds);
+      } else if (deleteTarget.type === 'batch' && deleteTarget.logIds) {
+        console.log('Performing batch delete for logIds:', deleteTarget.logIds);
+        const result = await apiClient.batchDeleteDeliveryLogs(deleteTarget.logIds);
+        console.log('Batch delete API response:', result);
+        
+        // Use only the actually deleted IDs from the backend response
+        deletedIds = result.deletedIds || [];
+        console.log('Extracted deletedIds from response:', deletedIds);
+        
+        if (result.failed > 0) {
+          console.warn(`${result.failed} deletions failed:`, result.errors);
+          
+          // Show user-friendly error message if some deletions failed
+          if (deletedIds.length > 0) {
+            setError(`${deletedIds.length}件が削除されましたが、${result.failed}件の削除に失敗しました。`);
+          } else {
+            setError('すべての削除に失敗しました。もう一度お試しください。');
+          }
+        }
+      }
+
+      console.log('Final deletedIds array:', deletedIds);
+      console.log('deletedIds length:', deletedIds.length);
+
+      // Skip optimistic update - rely only on server refresh to avoid state conflicts
+      console.log('Starting loadContentArchive(true) for data refresh...');
+      await loadContentArchive(true);
+      console.log('Data refresh completed');
+      
+      // Clear selections and exit selection mode
+      setSelectedItems(new Set());
+      setSelectionMode(false);
+      
+      console.log('=== DELETE OPERATION SUCCESS ===');
+      
+    } catch (err) {
+      console.error('Delete failed:', err);
+      setError('削除に失敗しました。もう一度お試しください。');
+      // If delete failed, reload to get correct state
+      await loadContentArchive(true);
+      console.log('=== DELETE OPERATION FAILED ===');
+    } finally {
+      setDeleteLoading(false);
+      setShowDeleteConfirm(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setDeleteTarget(null);
+  };
+
+  // Selection functions
+  const toggleItemSelection = (logId: string) => {
+    setSelectedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(logId)) {
+        newSet.delete(logId);
+      } else {
+        newSet.add(logId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllItems = () => {
+    const allIds = filteredContent.map(item => item.id).filter(id => id) as string[];
+    setSelectedItems(new Set(allIds));
+  };
+
+  const deselectAllItems = () => {
+    setSelectedItems(new Set());
+  };
+
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    if (selectionMode) {
+      setSelectedItems(new Set());
+    }
+  };
+
   // Content detail view
   if (selectedContent) {
     return (
@@ -235,7 +371,7 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
               >
                 戻る
               </button>
-              <button className="close-button" onClick={onClose}>×</button>
+              {onClose && <button className="close-button" onClick={onClose}>×</button>}
             </div>
           </div>
 
@@ -265,7 +401,10 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
               <div className="content-body-full">
                 <h5>コンテンツ全文:</h5>
                 <div className="content-text">
-                  <pre>{selectedContent.fullContent}</pre>
+                  <MarkdownRenderer 
+                    content={selectedContent.fullContent || ''} 
+                    className="content-markdown"
+                  />
                 </div>
               </div>
 
@@ -329,7 +468,7 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
             >
               フィルター {showFilters ? '▲' : '▼'}
             </button>
-            <button className="close-button" onClick={onClose}>×</button>
+            {onClose && <button className="close-button" onClick={onClose}>×</button>}
           </div>
         </div>
 
@@ -450,7 +589,52 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                 )}
               </div>
 
-              {filteredContent.length === 0 ? (
+              {/* Selection Mode Controls */}
+            {!consolidatedView && filteredContent.length > 0 && (
+              <div className="selection-controls">
+                <div className="selection-actions">
+                  <button 
+                    className={`btn-secondary ${selectionMode ? 'active' : ''}`}
+                    onClick={toggleSelectionMode}
+                  >
+                    {selectionMode ? '選択モード終了' : '選択モード'}
+                  </button>
+                  
+                  {selectionMode && (
+                    <>
+                      <button 
+                        className="btn-secondary small"
+                        onClick={selectAllItems}
+                        disabled={selectedItems.size === filteredContent.length}
+                      >
+                        すべて選択
+                      </button>
+                      <button 
+                        className="btn-secondary small"
+                        onClick={deselectAllItems}
+                        disabled={selectedItems.size === 0}
+                      >
+                        選択解除
+                      </button>
+                      <button 
+                        className="btn-danger"
+                        onClick={handleDeleteBatch}
+                        disabled={selectedItems.size === 0}
+                      >
+                        選択した{selectedItems.size}件を削除
+                      </button>
+                    </>
+                  )}
+                </div>
+                {selectionMode && (
+                  <div className="selection-status">
+                    {selectedItems.size} / {filteredContent.length} 件選択中
+                  </div>
+                )}
+              </div>
+            )}
+
+            {filteredContent.length === 0 ? (
                 <div className="empty-state">
                   <h4>コンテンツが見つかりません</h4>
                   <p>フィルター条件を変更してみてください</p>
@@ -521,6 +705,16 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                                 >
                                   詳細
                                 </button>
+                                <button 
+                                  className="delete-item-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    content.id && handleDeleteSingle(content.id);
+                                  }}
+                                  title="このコンテンツを削除"
+                                >
+                                  削除
+                                </button>
                               </div>
                             </div>
                             
@@ -532,7 +726,11 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                             
                             <div className="consolidated-item-content">
                               <div className="content-text-flow">
-                                {highlightSearchTerm(content.fullContent || '', searchText)}
+                                <MarkdownRenderer 
+                                  content={content.fullContent || ''} 
+                                  searchTerm={searchText}
+                                  className="content-markdown"
+                                />
                               </div>
                             </div>
                             
@@ -576,9 +774,25 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                           {group.items.map((content) => (
                             <div 
                               key={content.id} 
-                              className="archive-item"
-                              onClick={() => setSelectedContent(content)}
+                              className={`archive-item ${selectionMode ? 'selectable' : ''} ${selectedItems.has(content.id || '') ? 'selected' : ''}`}
+                              onClick={() => {
+                                if (selectionMode && content.id) {
+                                  toggleItemSelection(content.id);
+                                } else {
+                                  setSelectedContent(content);
+                                }
+                              }}
                             >
+                              {selectionMode && content.id && (
+                                <div className="selection-checkbox">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={content.id ? selectedItems.has(content.id) : false} 
+                                    onChange={() => content.id && toggleItemSelection(content.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                              )}
                               <div className="archive-item-header">
                                 <h5 className="category-name">
                                   {highlightSearchTerm(content.categoryName || '不明なカテゴリ', searchText)}
@@ -589,12 +803,13 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                               </div>
                               
                               <div className="archive-item-content">
-                                <p>
-                                  {highlightSearchTerm(
-                                    truncateContent(content.fullContent || ''),
-                                    searchText
-                                  )}
-                                </p>
+                                <div className="content-preview">
+                                  <MarkdownRenderer 
+                                    content={truncateContent(content.fullContent || '')}
+                                    searchTerm={searchText}
+                                    className="content-markdown preview"
+                                  />
+                                </div>
                               </div>
                               
                               {content.geminiQuery && (
@@ -610,9 +825,29 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                               )}
                               
                               <div className="archive-item-actions">
-                                <button className="view-btn small">
-                                  詳細を見る →
-                                </button>
+                                {!selectionMode && (
+                                  <>
+                                    <button 
+                                      className="view-btn small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedContent(content);
+                                      }}
+                                    >
+                                      詳細を見る →
+                                    </button>
+                                    <button 
+                                      className="delete-btn small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        content.id && handleDeleteSingle(content.id);
+                                      }}
+                                      title="削除"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -627,9 +862,25 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                   {filteredContent.map((content) => (
                     <div 
                       key={content.id} 
-                      className="archive-item"
-                      onClick={() => setSelectedContent(content)}
+                      className={`archive-item ${selectionMode ? 'selectable' : ''} ${selectedItems.has(content.id || '') ? 'selected' : ''}`}
+                      onClick={() => {
+                        if (selectionMode && content.id) {
+                          toggleItemSelection(content.id);
+                        } else {
+                          setSelectedContent(content);
+                        }
+                      }}
                     >
+                      {selectionMode && content.id && (
+                        <div className="selection-checkbox">
+                          <input 
+                            type="checkbox" 
+                            checked={content.id ? selectedItems.has(content.id) : false} 
+                            onChange={() => content.id && toggleItemSelection(content.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      )}
                       <div className="archive-item-header">
                         <h5 className="category-name">
                           {highlightSearchTerm(content.categoryName || '不明なカテゴリ', searchText)}
@@ -640,12 +891,13 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                       </div>
                       
                       <div className="archive-item-content">
-                        <p>
-                          {highlightSearchTerm(
-                            truncateContent(content.fullContent || ''),
-                            searchText
-                          )}
-                        </p>
+                        <div className="content-preview">
+                          <MarkdownRenderer 
+                            content={truncateContent(content.fullContent || '')}
+                            searchTerm={searchText}
+                            className="content-markdown preview"
+                          />
+                        </div>
                       </div>
                       
                       {content.geminiQuery && (
@@ -661,9 +913,29 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
                       )}
                       
                       <div className="archive-item-actions">
-                        <button className="view-btn small">
-                          詳細を見る →
-                        </button>
+                        {!selectionMode && (
+                          <>
+                            <button 
+                              className="view-btn small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedContent(content);
+                              }}
+                            >
+                              詳細を見る →
+                            </button>
+                            <button 
+                              className="delete-btn small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                content.id && handleDeleteSingle(content.id);
+                              }}
+                              title="削除"
+                            >
+                              🗑️
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -673,11 +945,47 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
           )}
         </div>
 
-        <div className="content-archive-footer">
-          <button className="btn-secondary" onClick={onClose}>
-            閉じる
-          </button>
-        </div>
+        {onClose && (
+          <div className="content-archive-footer">
+            <button className="btn-secondary" onClick={onClose}>
+              閉じる
+            </button>
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {showDeleteConfirm && (
+          <div className="delete-confirmation-overlay">
+            <div className="delete-confirmation-modal">
+              <h4>削除の確認</h4>
+              <p>
+                {deleteTarget?.type === 'single' 
+                  ? 'このコンテンツを削除しますか？'
+                  : `選択された${deleteTarget?.logIds?.length || 0}件のコンテンツを削除しますか？`
+                }
+              </p>
+              <p className="delete-warning">
+                この操作は取り消せません。
+              </p>
+              <div className="delete-confirmation-actions">
+                <button 
+                  className="btn-secondary"
+                  onClick={cancelDelete}
+                  disabled={deleteLoading}
+                >
+                  キャンセル
+                </button>
+                <button 
+                  className="btn-danger"
+                  onClick={confirmDelete}
+                  disabled={deleteLoading}
+                >
+                  {deleteLoading ? '削除中...' : '削除する'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

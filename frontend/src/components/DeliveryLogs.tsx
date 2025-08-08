@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DeliveryLog, apiClient } from '../utils/api';
+import { formatDate } from '../utils/dateUtils';
+import MarkdownRenderer from './MarkdownRenderer';
 
 export const DeliveryLogs: React.FC = () => {
   const [logs, setLogs] = useState<DeliveryLog[]>([]);
@@ -24,9 +26,6 @@ export const DeliveryLogs: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ja-JP');
-  };
 
   const getStatusText = (status: string) => {
     return status === 'success' ? '成功' : '失敗';
@@ -83,10 +82,13 @@ export const DeliveryLogs: React.FC = () => {
                   <td>
                     {log.contentSummary && (
                       <div className="content-summary" title={log.contentSummary}>
-                        {log.contentSummary.length > 50 
-                          ? `${log.contentSummary.substring(0, 50)}...`
-                          : log.contentSummary
-                        }
+                        <MarkdownRenderer 
+                          content={log.contentSummary.length > 50 
+                            ? `${log.contentSummary.substring(0, 50)}...`
+                            : log.contentSummary
+                          }
+                          className="content-markdown summary"
+                        />
                       </div>
                     )}
                   </td>
