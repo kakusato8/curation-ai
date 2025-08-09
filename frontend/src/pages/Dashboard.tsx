@@ -16,8 +16,7 @@ export const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingSetting, setEditingSetting] = useState<UserSetting | undefined>();
-  const [activeTab, setActiveTab] = useState<'todays' | 'settings' | 'logs'>('todays');
-  const [showArchive, setShowArchive] = useState(false);
+  const [activeTab, setActiveTab] = useState<'todays' | 'settings' | 'logs' | 'archive'>('todays');
   const [showHistory, setShowHistory] = useState(false);
   const [historyCategory, setHistoryCategory] = useState<string | undefined>();
   
@@ -183,7 +182,7 @@ export const Dashboard: React.FC = () => {
 
   const handleTodaysContentClick = (content: DeliveryLog) => {
     // コンテンツアーカイブで詳細表示
-    setShowArchive(true);
+    setActiveTab('archive');
   };
   
 
@@ -222,6 +221,12 @@ export const Dashboard: React.FC = () => {
         >
           配信ログ
         </button>
+        <button 
+          className={`nav-tab ${activeTab === 'archive' ? 'active' : ''}`}
+          onClick={() => setActiveTab('archive')}
+        >
+          コンテンツライブラリ
+        </button>
       </nav>
 
       <main className="dashboard-main">
@@ -242,13 +247,6 @@ export const Dashboard: React.FC = () => {
                   onClick={() => setShowForm(true)}
                 >
                   新しい設定を追加
-                </button>
-                <button 
-                  className="add-setting-btn"
-                  onClick={() => setShowArchive(true)}
-                  style={{ marginLeft: '16px' }}
-                >
-                  コンテンツライブラリ
                 </button>
               </div>
             )}
@@ -287,6 +285,14 @@ export const Dashboard: React.FC = () => {
             <DeliveryLogs />
           </div>
         )}
+
+        {activeTab === 'archive' && (
+          <div className="archive-section">
+            <ContentArchiveRefactored 
+              onClose={() => setActiveTab('todays')}
+            />
+          </div>
+        )}
         
       </main>
 
@@ -308,12 +314,6 @@ export const Dashboard: React.FC = () => {
         />
       )}
 
-      {/* Content Archive Modal */}
-      {showArchive && (
-        <ContentArchiveRefactored 
-          onClose={() => setShowArchive(false)}
-        />
-      )}
       
     </div>
   );

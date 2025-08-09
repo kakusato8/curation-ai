@@ -21,7 +21,7 @@ exports.DeliveryModule = DeliveryModule;
 exports.DeliveryModule = DeliveryModule = __decorate([
     (0, common_1.Module)({
         imports: [firebase_module_1.FirebaseModule, settings_module_1.SettingsModule, gemini_module_1.GeminiModule, email_module_1.EmailModule, auth_module_1.AuthModule],
-        controllers: [delivery_controller_1.DeliveryController],
+        controllers: [delivery_controller_1.DeliveryController, delivery_controller_1.DeliveryTestController],
         providers: [delivery_service_1.DeliveryService],
         exports: [delivery_service_1.DeliveryService],
     })

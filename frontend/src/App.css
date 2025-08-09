@@ -207,6 +207,57 @@ body {
   background: #229954;
 }
 
+/* Content Archive Container (Tab View) Styles */
+.content-archive-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  height: 100%;
+}
+
+.content-archive-container .content-archive-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.content-archive-container .content-archive-header h3 {
+  color: #2c3e50;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.content-archive-container .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.content-archive-container .close-button {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 16px;
+  color: #495057;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.content-archive-container .close-button:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.content-archive-container .content-archive-body {
+  margin-top: 20px;
+}
+
 /* Markdown Renderer Styles */
 .markdown-renderer {
   line-height: 1.6;

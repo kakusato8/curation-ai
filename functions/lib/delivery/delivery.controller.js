@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DeliveryController = void 0;
+exports.DeliveryTestController = exports.DeliveryController = void 0;
 const common_1 = require("@nestjs/common");
 const delivery_service_1 = require("./delivery.service");
 const auth_guard_1 = require("../auth/auth.guard");
@@ -231,4 +231,49 @@ exports.DeliveryController = DeliveryController = __decorate([
     (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
     __metadata("design:paramtypes", [delivery_service_1.DeliveryService])
 ], DeliveryController);
+// Separate controller for testing without auth guard
+let DeliveryTestController = class DeliveryTestController {
+    constructor(deliveryService) {
+        this.deliveryService = deliveryService;
+    }
+    async testCheckDataIntegrity() {
+        const result = await this.deliveryService.checkDataIntegrity();
+        return result;
+    }
+    async testCleanupOrphanedSettings() {
+        const result = await this.deliveryService.cleanupOrphanedSettings();
+        return {
+            message: `Cleanup completed: ${result.removedSettings.length} orphaned settings removed`,
+            removedSettings: result.removedSettings,
+            errors: result.errors.length > 0 ? result.errors : undefined
+        };
+    }
+    async testScheduledDelivery() {
+        await this.deliveryService.handleScheduledDelivery();
+        return { message: 'Test scheduled delivery completed' };
+    }
+};
+exports.DeliveryTestController = DeliveryTestController;
+__decorate([
+    (0, common_1.Get)('data-integrity'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DeliveryTestController.prototype, "testCheckDataIntegrity", null);
+__decorate([
+    (0, common_1.Post)('cleanup-orphaned'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DeliveryTestController.prototype, "testCleanupOrphanedSettings", null);
+__decorate([
+    (0, common_1.Post)('test-scheduled-delivery'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DeliveryTestController.prototype, "testScheduledDelivery", null);
+exports.DeliveryTestController = DeliveryTestController = __decorate([
+    (0, common_1.Controller)('delivery-test'),
+    __metadata("design:paramtypes", [delivery_service_1.DeliveryService])
+], DeliveryTestController);
 //# sourceMappingURL=delivery.controller.js.map

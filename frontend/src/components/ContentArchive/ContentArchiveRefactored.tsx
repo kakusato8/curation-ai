@@ -406,32 +406,31 @@ export const ContentArchiveRefactored: React.FC<ContentArchiveRefactoredProps> =
   }
 
   return (
-    <div className="content-archive-overlay">
-      <div className="content-archive-modal">
-        <div className="content-archive-header">
-          <h3>コンテンツライブラリ</h3>
-          <div className="header-actions">
-            {renderViewToggle()}
-            <ContentArchiveFilters
-              showFilters={showFilters}
-              onToggleFilters={() => setShowFilters(!showFilters)}
-              filters={filters}
-              searchText={searchText}
-              selectedCategory={selectedCategory}
-              dateRange={dateRange}
-              categories={archiveData?.categories || []}
-              onSearchTextChange={setSearchText}
-              onCategoryChange={setSelectedCategory}
-              onDateRangeChange={(field, value) => setDateRange(prev => ({ ...prev, [field]: value }))}
-              onFiltersChange={(newFilters) => setFilters(prev => ({ ...prev, ...newFilters }))}
-              onApplyFilters={applyFilters}
-              onClearFilters={clearFilters}
-            />
-            {onClose && <button className="close-button" onClick={onClose}>×</button>}
-          </div>
+    <div className="content-archive-container">
+      <div className="content-archive-header">
+        <h3>コンテンツライブラリ</h3>
+        <div className="header-actions">
+          {renderViewToggle()}
+          <ContentArchiveFilters
+            showFilters={showFilters}
+            onToggleFilters={() => setShowFilters(!showFilters)}
+            filters={filters}
+            searchText={searchText}
+            selectedCategory={selectedCategory}
+            dateRange={dateRange}
+            categories={archiveData?.categories || []}
+            onSearchTextChange={setSearchText}
+            onCategoryChange={setSelectedCategory}
+            onDateRangeChange={(field, value) => setDateRange(prev => ({ ...prev, [field]: value }))}
+            onFiltersChange={(newFilters) => setFilters(prev => ({ ...prev, ...newFilters }))}
+            onApplyFilters={applyFilters}
+            onClearFilters={clearFilters}
+          />
+          {onClose && <button className="close-button" onClick={onClose}>←</button>}
         </div>
+      </div>
 
-        <div className="content-archive-body">
+      <div className="content-archive-body">
           {loading && (
             <div className="loading-state">
               <div className="loading-spinner"></div>
@@ -471,23 +470,16 @@ export const ContentArchiveRefactored: React.FC<ContentArchiveRefactoredProps> =
           )}
         </div>
 
-        {onClose && (
-          <div className="content-archive-footer">
-            <button className="btn-secondary" onClick={onClose}>
-              閉じる
-            </button>
-          </div>
-        )}
-
-        <ContentDeleteDialog
-          isVisible={showDeleteConfirm}
-          deleteType={deleteTarget?.type || 'single'}
-          itemCount={deleteTarget?.logIds?.length || 0}
-          isLoading={deleteLoading}
-          onConfirm={confirmDelete}
-          onCancel={cancelDelete}
-        />
       </div>
+
+      <ContentDeleteDialog
+        isVisible={showDeleteConfirm}
+        deleteType={deleteTarget?.type || 'single'}
+        itemCount={deleteTarget?.logIds?.length || 0}
+        isLoading={deleteLoading}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
     </div>
   )
 }
