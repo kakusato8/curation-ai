@@ -171,31 +171,3 @@ export class DeliveryController {
   }
 
 }
-
-// Separate controller for testing without auth guard
-@Controller('delivery-test')
-export class DeliveryTestController {
-  constructor(private deliveryService: DeliveryService) {}
-
-  @Get('data-integrity')
-  async testCheckDataIntegrity() {
-    const result = await this.deliveryService.checkDataIntegrity();
-    return result;
-  }
-
-  @Post('cleanup-orphaned')
-  async testCleanupOrphanedSettings() {
-    const result = await this.deliveryService.cleanupOrphanedSettings();
-    return {
-      message: `Cleanup completed: ${result.removedSettings.length} orphaned settings removed`,
-      removedSettings: result.removedSettings,
-      errors: result.errors.length > 0 ? result.errors : undefined
-    };
-  }
-
-  @Post('test-scheduled-delivery')
-  async testScheduledDelivery() {
-    await this.deliveryService.handleScheduledDelivery();
-    return { message: 'Test scheduled delivery completed' };
-  }
-}
