@@ -76,13 +76,6 @@ let DeliveryController = class DeliveryController {
         const archive = await this.deliveryService.getContentArchive(req.user.uid, options);
         return archive;
     }
-    async deleteDeliveryLog(req, logId) {
-        const result = await this.deliveryService.deleteDeliveryLog(req.user.uid, logId);
-        if (!result.success) {
-            return { error: result.error };
-        }
-        return { message: 'Content deleted successfully' };
-    }
     async batchDeleteDeliveryLogs(req, body) {
         console.log('=== BATCH DELETE CONTROLLER START ===');
         console.log('Request user UID:', req.user.uid);
@@ -105,6 +98,26 @@ let DeliveryController = class DeliveryController {
         console.log('Controller returning response:', response);
         console.log('=== BATCH DELETE CONTROLLER END ===');
         return response;
+    }
+    async deleteDeliveryLog(req, logId) {
+        const result = await this.deliveryService.deleteDeliveryLog(req.user.uid, logId);
+        if (!result.success) {
+            return { error: result.error };
+        }
+        return { message: 'Content deleted successfully' };
+    }
+    // Data integrity management endpoints (admin only)
+    async checkDataIntegrity() {
+        const result = await this.deliveryService.checkDataIntegrity();
+        return result;
+    }
+    async cleanupOrphanedSettings() {
+        const result = await this.deliveryService.cleanupOrphanedSettings();
+        return {
+            message: `Cleanup completed: ${result.removedSettings.length} orphaned settings removed`,
+            removedSettings: result.removedSettings,
+            errors: result.errors.length > 0 ? result.errors : undefined
+        };
     }
 };
 exports.DeliveryController = DeliveryController;
@@ -186,6 +199,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], DeliveryController.prototype, "getContentArchive", null);
 __decorate([
+    (0, common_1.Delete)('logs/batch'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], DeliveryController.prototype, "batchDeleteDeliveryLogs", null);
+__decorate([
     (0, common_1.Delete)('logs/:logId'),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Param)('logId')),
@@ -194,13 +215,17 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], DeliveryController.prototype, "deleteDeliveryLog", null);
 __decorate([
-    (0, common_1.Delete)('logs/batch'),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Body)()),
+    (0, common_1.Get)('admin/data-integrity'),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
-], DeliveryController.prototype, "batchDeleteDeliveryLogs", null);
+], DeliveryController.prototype, "checkDataIntegrity", null);
+__decorate([
+    (0, common_1.Post)('admin/cleanup-orphaned'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DeliveryController.prototype, "cleanupOrphanedSettings", null);
 exports.DeliveryController = DeliveryController = __decorate([
     (0, common_1.Controller)('delivery'),
     (0, common_1.UseGuards)(auth_guard_1.AuthGuard),

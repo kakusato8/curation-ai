@@ -23,20 +23,38 @@ export class SettingsService {
       };
     }
     
-    return settingsDoc.data() as UserSettings;
+    const userSettings = settingsDoc.data() as UserSettings;
+    // Sort settings by displayOrder, then by creation order
+    userSettings.settings.sort((a, b) => {
+      if (a.displayOrder !== undefined && b.displayOrder !== undefined) {
+        return a.displayOrder - b.displayOrder;
+      }
+      if (a.displayOrder !== undefined) return -1;
+      if (b.displayOrder !== undefined) return 1;
+      return 0;
+    });
+    
+    return userSettings;
   }
 
   async createSetting(userId: string, createSettingDto: CreateSettingDto): Promise<UserSetting> {
     const firestore = this.firebaseService.getFirestore();
     const settingsRef = firestore.collection('user_settings').doc(userId);
     
+    const settingsDoc = await settingsRef.get();
+    let nextDisplayOrder = 0;
+    
+    if (settingsDoc.exists) {
+      const currentSettings = settingsDoc.data() as UserSettings;
+      nextDisplayOrder = Math.max(...currentSettings.settings.map(s => s.displayOrder || 0), -1) + 1;
+    }
+    
     const newSetting: UserSetting = {
       id: uuidv4(),
       ...createSettingDto,
+      displayOrder: nextDisplayOrder,
     };
 
-    const settingsDoc = await settingsRef.get();
-    
     if (settingsDoc.exists) {
       const currentSettings = settingsDoc.data() as UserSettings;
       currentSettings.settings.push(newSetting);
@@ -120,5 +138,34 @@ export class SettingsService {
     }
 
     return setting;
+  }
+
+  async reorderSettings(userId: string, settingIds: string[]): Promise<UserSettings> {
+    const firestore = this.firebaseService.getFirestore();
+    const settingsRef = firestore.collection('user_settings').doc(userId);
+    const settingsDoc = await settingsRef.get();
+    
+    if (!settingsDoc.exists) {
+      throw new NotFoundException('User settings not found');
+    }
+
+    const userSettings = settingsDoc.data() as UserSettings;
+    
+    // Update displayOrder based on the provided order
+    settingIds.forEach((settingId, index) => {
+      const setting = userSettings.settings.find(s => s.id === settingId);
+      if (setting) {
+        setting.displayOrder = index;
+      }
+    });
+
+    userSettings.updatedAt = new Date();
+
+    await settingsRef.update({
+      settings: userSettings.settings,
+      updatedAt: userSettings.updatedAt,
+    });
+
+    return await this.getUserSettings(userId);
   }
 }

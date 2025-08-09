@@ -73,7 +73,7 @@ export const SettingForm: React.FC<SettingFormProps> = ({ setting, onSubmit, onC
             placeholder="例: 最新の人気漫画やトレンドになっている漫画作品について教えて"
             required
             disabled={loading}
-            rows={3}
+            rows={9}
           />
         </div>
 

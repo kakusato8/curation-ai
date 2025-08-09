@@ -9,6 +9,7 @@ export interface UserSetting {
   frequency: 'daily' | 'weekly' | 'monthly';
   weeklyDay?: number;
   monthlyDay?: number;
+  displayOrder?: number;
 }
 
 export interface UserSettings {
@@ -131,6 +132,13 @@ class ApiClient {
   async deleteSetting(id: string): Promise<void> {
     return this.request<void>(`/settings/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  async reorderSettings(settingIds: string[]): Promise<UserSettings> {
+    return this.request<UserSettings>('/settings/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ settingIds }),
     });
   }
 

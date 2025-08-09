@@ -48,4 +48,9 @@ export class SettingsController {
     return { message: 'Setting deleted successfully' };
   }
 
+  @Put('reorder')
+  async reorderSettings(@Request() req: AuthenticatedRequest, @Body() body: { settingIds: string[] }) {
+    return this.settingsService.reorderSettings(req.user.uid, body.settingIds);
+  }
+
 }

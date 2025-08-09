@@ -5,8 +5,9 @@ import { SettingForm } from '../components/SettingForm';
 import { DeliveryLogs } from '../components/DeliveryLogs';
 import ContentDisplay from '../components/ContentDisplay';
 import DeliveryHistory from '../components/DeliveryHistory';
-import ContentArchive from '../components/ContentArchive';
-import { UserSetting, UserSettings, apiClient, DeliveryContentResponse, BatchDeliveryResponse } from '../utils/api';
+import { ContentArchiveRefactored } from '../components/ContentArchive/ContentArchiveRefactored';
+import { TodaysContent } from '../components/TodaysContent';
+import { UserSetting, UserSettings, apiClient, DeliveryContentResponse, BatchDeliveryResponse, DeliveryLog } from '../utils/api';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -15,7 +16,8 @@ export const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingSetting, setEditingSetting] = useState<UserSetting | undefined>();
-  const [activeTab, setActiveTab] = useState<'settings' | 'logs' | 'archive'>('settings');
+  const [activeTab, setActiveTab] = useState<'todays' | 'settings' | 'logs'>('todays');
+  const [showArchive, setShowArchive] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyCategory, setHistoryCategory] = useState<string | undefined>();
   
@@ -150,6 +152,16 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const handleReorderSettings = async (settingIds: string[]) => {
+    try {
+      await apiClient.reorderSettings(settingIds);
+      loadSettings();
+    } catch (error) {
+      console.error('Failed to reorder settings:', error);
+      alert('設定の並べ替えに失敗しました。');
+    }
+  };
+
   const handleCloseContentDisplay = () => {
     setContentDisplay({
       content: null,
@@ -167,6 +179,11 @@ export const Dashboard: React.FC = () => {
   const handleCloseHistory = () => {
     setShowHistory(false);
     setHistoryCategory(undefined);
+  };
+
+  const handleTodaysContentClick = (content: DeliveryLog) => {
+    // コンテンツアーカイブで詳細表示
+    setShowArchive(true);
   };
   
 
@@ -188,6 +205,12 @@ export const Dashboard: React.FC = () => {
 
       <nav className="dashboard-nav">
         <button 
+          className={`nav-tab ${activeTab === 'todays' ? 'active' : ''}`}
+          onClick={() => setActiveTab('todays')}
+        >
+          本日の配信
+        </button>
+        <button 
           className={`nav-tab ${activeTab === 'settings' ? 'active' : ''}`}
           onClick={() => setActiveTab('settings')}
         >
@@ -199,15 +222,15 @@ export const Dashboard: React.FC = () => {
         >
           配信ログ
         </button>
-        <button 
-          className={`nav-tab ${activeTab === 'archive' ? 'active' : ''}`}
-          onClick={() => setActiveTab('archive')}
-        >
-          コンテンツライブラリ
-        </button>
       </nav>
 
       <main className="dashboard-main">
+        {activeTab === 'todays' && (
+          <div className="todays-section">
+            <TodaysContent onContentClick={handleTodaysContentClick} />
+          </div>
+        )}
+
         {activeTab === 'settings' && (
           <div className="settings-section">
             {error && <div className="error-message">{error}</div>}
@@ -219,6 +242,13 @@ export const Dashboard: React.FC = () => {
                   onClick={() => setShowForm(true)}
                 >
                   新しい設定を追加
+                </button>
+                <button 
+                  className="add-setting-btn"
+                  onClick={() => setShowArchive(true)}
+                  style={{ marginLeft: '16px' }}
+                >
+                  コンテンツライブラリ
                 </button>
               </div>
             )}
@@ -238,6 +268,7 @@ export const Dashboard: React.FC = () => {
                 onInstantContent={handleInstantContentDelivery}
                 onBatchContent={handleBatchContentDelivery}
                 onShowHistory={handleShowHistory}
+                onReorder={handleReorderSettings}
               />
             )}
           </div>
@@ -257,11 +288,6 @@ export const Dashboard: React.FC = () => {
           </div>
         )}
         
-        {activeTab === 'archive' && (
-          <ContentArchive 
-            onClose={() => setActiveTab('settings')}
-          />
-        )}
       </main>
 
       {/* Content Display Modal */}
@@ -279,6 +305,13 @@ export const Dashboard: React.FC = () => {
         <DeliveryHistory
           categoryName={historyCategory}
           onClose={handleCloseHistory}
+        />
+      )}
+
+      {/* Content Archive Modal */}
+      {showArchive && (
+        <ContentArchiveRefactored 
+          onClose={() => setShowArchive(false)}
         />
       )}
       

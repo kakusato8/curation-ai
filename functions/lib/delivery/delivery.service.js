@@ -23,36 +23,57 @@ let DeliveryService = DeliveryService_1 = class DeliveryService {
         this.logger = new common_1.Logger(DeliveryService_1.name);
     }
     async handleScheduledDelivery() {
-        var _a;
         this.logger.log('Starting scheduled delivery check...');
         const firestore = this.firebaseService.getFirestore();
         const today = new Date();
         const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
         const dayOfMonth = today.getDate();
+        let processedUsers = 0;
+        let skippedUsers = 0;
+        let totalDeliveries = 0;
         try {
             // Get all user settings
             const settingsSnapshot = await firestore.collection('user_settings').get();
+            this.logger.log(`Found ${settingsSnapshot.docs.length} user settings documents`);
             for (const doc of settingsSnapshot.docs) {
                 const userSettings = doc.data();
                 const userId = userSettings.userId;
                 // Get user email
                 const userDoc = await firestore.collection('users').doc(userId).get();
                 if (!userDoc.exists) {
-                    this.logger.warn(`User ${userId} not found`);
+                    this.logger.warn(`User ${userId} not found in users collection, skipping delivery`);
+                    skippedUsers++;
                     continue;
                 }
-                const userEmail = (_a = userDoc.data()) === null || _a === void 0 ? void 0 : _a.email;
+                const userData = userDoc.data();
+                const userEmail = userData === null || userData === void 0 ? void 0 : userData.email;
+                if (!userEmail) {
+                    this.logger.warn(`User ${userId} has no email address, skipping delivery`);
+                    skippedUsers++;
+                    continue;
+                }
+                processedUsers++;
+                this.logger.log(`Processing deliveries for user ${userId} (${userEmail})`);
                 // Check each setting for delivery
+                let userDeliveryCount = 0;
                 for (const setting of userSettings.settings) {
                     if (this.shouldDeliver(setting, dayOfWeek, dayOfMonth)) {
+                        this.logger.log(`Delivering content for setting: ${setting.categoryName} (frequency: ${setting.frequency})`);
                         await this.deliverContent(userId, userEmail, setting, 'scheduled');
+                        userDeliveryCount++;
+                        totalDeliveries++;
                     }
                 }
+                if (userDeliveryCount === 0) {
+                    this.logger.log(`No deliveries scheduled for user ${userId} today`);
+                }
             }
+            this.logger.log(`Scheduled delivery completed: ${processedUsers} users processed, ${skippedUsers} users skipped, ${totalDeliveries} total deliveries`);
         }
         catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             this.logger.error(`Error in scheduled delivery: ${errorMessage}`);
+            throw error; // Re-throw to ensure Cloud Functions reports the error
         }
     }
     shouldDeliver(setting, dayOfWeek, dayOfMonth) {
@@ -404,23 +425,71 @@ let DeliveryService = DeliveryService_1 = class DeliveryService {
             const logs = await this.getDeliveryLogs(userId, deliveryLogsOptions);
             // Filter logs that have full content
             const contentLogs = logs.filter(log => log.fullContent && log.fullContent.trim().length > 0);
+            // Get user settings for category order
+            const userSettings = await this.settingsService.getUserSettings(userId);
+            const settingsMap = new Map(userSettings.settings.map(s => [s.categoryName, s]));
             // Apply client-side sorting for categoryName if needed
             if (sortBy === 'categoryName') {
                 contentLogs.sort((a, b) => {
-                    const aVal = a.categoryName || '';
-                    const bVal = b.categoryName || '';
-                    const result = aVal.localeCompare(bVal);
-                    return sortOrder === 'desc' ? -result : result;
+                    var _a, _b;
+                    const aName = a.categoryName || '';
+                    const bName = b.categoryName || '';
+                    const aSetting = settingsMap.get(aName);
+                    const bSetting = settingsMap.get(bName);
+                    const aOrder = (_a = aSetting === null || aSetting === void 0 ? void 0 : aSetting.displayOrder) !== null && _a !== void 0 ? _a : 999999;
+                    const bOrder = (_b = bSetting === null || bSetting === void 0 ? void 0 : bSetting.displayOrder) !== null && _b !== void 0 ? _b : 999999;
+                    // Primary sort by display order
+                    if (aOrder !== bOrder) {
+                        return sortOrder === 'asc' ? aOrder - bOrder : bOrder - aOrder;
+                    }
+                    // Secondary sort by category name
+                    const comparison = aName.localeCompare(bName);
+                    return sortOrder === 'asc' ? comparison : -comparison;
                 });
             }
-            // Get unique categories
+            else {
+                // For other sorting, add secondary sort by category display order
+                contentLogs.sort((a, b) => {
+                    var _a, _b;
+                    // First apply the requested sort
+                    let comparison = 0;
+                    if (sortBy === 'deliveredAt' && a.deliveredAt && b.deliveredAt) {
+                        comparison = new Date(a.deliveredAt).getTime() - new Date(b.deliveredAt).getTime();
+                    }
+                    else if (sortBy === 'generatedAt' && a.generatedAt && b.generatedAt) {
+                        comparison = new Date(a.generatedAt).getTime() - new Date(b.generatedAt).getTime();
+                    }
+                    if (comparison !== 0) {
+                        return sortOrder === 'asc' ? comparison : -comparison;
+                    }
+                    // Secondary sort by category display order
+                    const aName = a.categoryName || '';
+                    const bName = b.categoryName || '';
+                    const aSetting = settingsMap.get(aName);
+                    const bSetting = settingsMap.get(bName);
+                    const aOrder = (_a = aSetting === null || aSetting === void 0 ? void 0 : aSetting.displayOrder) !== null && _a !== void 0 ? _a : 999999;
+                    const bOrder = (_b = bSetting === null || bSetting === void 0 ? void 0 : bSetting.displayOrder) !== null && _b !== void 0 ? _b : 999999;
+                    return aOrder - bOrder;
+                });
+            }
+            // Get unique categories sorted by display order
             const categoriesSet = new Set();
             contentLogs.forEach(log => {
                 if (log.categoryName) {
                     categoriesSet.add(log.categoryName);
                 }
             });
-            const categories = Array.from(categoriesSet).sort();
+            const categories = Array.from(categoriesSet).sort((a, b) => {
+                var _a, _b;
+                const aSetting = settingsMap.get(a);
+                const bSetting = settingsMap.get(b);
+                const aOrder = (_a = aSetting === null || aSetting === void 0 ? void 0 : aSetting.displayOrder) !== null && _a !== void 0 ? _a : 999999;
+                const bOrder = (_b = bSetting === null || bSetting === void 0 ? void 0 : bSetting.displayOrder) !== null && _b !== void 0 ? _b : 999999;
+                if (aOrder !== bOrder) {
+                    return aOrder - bOrder;
+                }
+                return a.localeCompare(b);
+            });
             return {
                 logs: contentLogs,
                 totalCount: contentLogs.length,
@@ -572,6 +641,86 @@ let DeliveryService = DeliveryService_1 = class DeliveryService {
         this.logger.log('Final batch delete results:', results);
         this.logger.log(`=== BATCH DELETE COMPLETE === User: ${userId}, Successful: ${results.successful}, Failed: ${results.failed}, DeletedIds: [${results.deletedIds.join(', ')}]`);
         return results;
+    }
+    // Data integrity utility methods
+    async checkDataIntegrity() {
+        this.logger.log('Starting data integrity check...');
+        const firestore = this.firebaseService.getFirestore();
+        const usersWithoutProfiles = [];
+        const settingsWithoutUsers = [];
+        try {
+            // Get all user settings
+            const settingsSnapshot = await firestore.collection('user_settings').get();
+            const totalUserSettings = settingsSnapshot.docs.length;
+            this.logger.log(`Found ${totalUserSettings} user settings documents`);
+            for (const doc of settingsSnapshot.docs) {
+                const userSettings = doc.data();
+                const userId = userSettings.userId;
+                // Check if user exists
+                const userDoc = await firestore.collection('users').doc(userId).get();
+                if (!userDoc.exists) {
+                    settingsWithoutUsers.push(userId);
+                }
+                else {
+                    const userData = userDoc.data();
+                    if (!(userData === null || userData === void 0 ? void 0 : userData.email)) {
+                        usersWithoutProfiles.push(userId);
+                    }
+                }
+            }
+            const summary = `Data integrity check completed:
+- Total user settings: ${totalUserSettings}
+- Settings without corresponding users: ${settingsWithoutUsers.length}
+- Users without email addresses: ${usersWithoutProfiles.length}`;
+            this.logger.log(summary);
+            return {
+                totalUserSettings,
+                usersWithoutProfiles,
+                settingsWithoutUsers,
+                summary
+            };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Data integrity check failed: ${errorMessage}`);
+            throw new Error(`Data integrity check failed: ${errorMessage}`);
+        }
+    }
+    async cleanupOrphanedSettings() {
+        this.logger.log('Starting cleanup of orphaned settings...');
+        const firestore = this.firebaseService.getFirestore();
+        const removedSettings = [];
+        const errors = [];
+        try {
+            const integrityCheck = await this.checkDataIntegrity();
+            for (const userId of integrityCheck.settingsWithoutUsers) {
+                try {
+                    this.logger.log(`Removing orphaned settings for user: ${userId}`);
+                    // Find and delete the user_settings document
+                    const settingsQuery = await firestore
+                        .collection('user_settings')
+                        .where('userId', '==', userId)
+                        .get();
+                    for (const doc of settingsQuery.docs) {
+                        await doc.ref.delete();
+                        removedSettings.push(userId);
+                        this.logger.log(`Removed settings document for user: ${userId}`);
+                    }
+                }
+                catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    errors.push({ userId, error: errorMessage });
+                    this.logger.error(`Failed to remove settings for user ${userId}: ${errorMessage}`);
+                }
+            }
+            this.logger.log(`Cleanup completed: ${removedSettings.length} orphaned settings removed, ${errors.length} errors`);
+            return { removedSettings, errors };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Cleanup failed: ${errorMessage}`);
+            throw new Error(`Cleanup failed: ${errorMessage}`);
+        }
     }
 };
 exports.DeliveryService = DeliveryService;

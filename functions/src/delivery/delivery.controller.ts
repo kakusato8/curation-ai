@@ -111,15 +111,6 @@ export class DeliveryController {
     return archive;
   }
 
-  @Delete('logs/:logId')
-  async deleteDeliveryLog(@Request() req: AuthenticatedRequest, @Param('logId') logId: string) {
-    const result = await this.deliveryService.deleteDeliveryLog(req.user.uid, logId);
-    if (!result.success) {
-      return { error: result.error };
-    }
-    return { message: 'Content deleted successfully' };
-  }
-
   @Delete('logs/batch')
   async batchDeleteDeliveryLogs(
     @Request() req: AuthenticatedRequest, 
@@ -151,5 +142,31 @@ export class DeliveryController {
     console.log('Controller returning response:', response);
     console.log('=== BATCH DELETE CONTROLLER END ===');
     return response;
+  }
+
+  @Delete('logs/:logId')
+  async deleteDeliveryLog(@Request() req: AuthenticatedRequest, @Param('logId') logId: string) {
+    const result = await this.deliveryService.deleteDeliveryLog(req.user.uid, logId);
+    if (!result.success) {
+      return { error: result.error };
+    }
+    return { message: 'Content deleted successfully' };
+  }
+
+  // Data integrity management endpoints (admin only)
+  @Get('admin/data-integrity')
+  async checkDataIntegrity() {
+    const result = await this.deliveryService.checkDataIntegrity();
+    return result;
+  }
+
+  @Post('admin/cleanup-orphaned')
+  async cleanupOrphanedSettings() {
+    const result = await this.deliveryService.cleanupOrphanedSettings();
+    return {
+      message: `Cleanup completed: ${result.removedSettings.length} orphaned settings removed`,
+      removedSettings: result.removedSettings,
+      errors: result.errors.length > 0 ? result.errors : undefined
+    };
   }
 }

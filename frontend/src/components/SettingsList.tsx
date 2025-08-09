@@ -9,6 +9,7 @@ interface SettingsListProps {
   onInstantContent: (settingId: string) => void;
   onBatchContent: () => void;
   onShowHistory?: (categoryName: string) => void;
+  onReorder?: (settingIds: string[]) => void;
 }
 
 export const SettingsList: React.FC<SettingsListProps> = ({ 
@@ -18,9 +19,12 @@ export const SettingsList: React.FC<SettingsListProps> = ({
   onRefresh,
   onInstantContent,
   onBatchContent,
-  onShowHistory
+  onShowHistory,
+  onReorder
 }) => {
   const [loadingDelivery, setLoadingDelivery] = useState<string | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const getFrequencyText = (setting: UserSetting) => {
     switch (setting.frequency) {
@@ -44,6 +48,51 @@ export const SettingsList: React.FC<SettingsListProps> = ({
     onBatchContent();
   };
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', '');
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    
+    if (draggedIndex === null || draggedIndex === dropIndex || !onReorder) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const newSettings = [...settings];
+    const draggedSetting = newSettings[draggedIndex];
+    
+    // Remove dragged item
+    newSettings.splice(draggedIndex, 1);
+    // Insert at new position
+    newSettings.splice(dropIndex, 0, draggedSetting);
+    
+    const reorderedIds = newSettings.map(setting => setting.id);
+    onReorder(reorderedIds);
+    
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
   if (settings.length === 0) {
     return (
       <div className="settings-list empty">
@@ -65,9 +114,23 @@ export const SettingsList: React.FC<SettingsListProps> = ({
       </div>
 
       <div className="settings-grid">
-        {settings.map((setting) => (
-          <div key={setting.id} className="setting-card">
+        {settings.map((setting, index) => (
+          <div 
+            key={setting.id} 
+            className={`setting-card ${draggedIndex === index ? 'dragging' : ''} ${dragOverIndex === index ? 'drag-over' : ''}`}
+            draggable={onReorder ? true : false}
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, index)}
+            onDragEnd={handleDragEnd}
+          >
             <div className="setting-header">
+              {onReorder && (
+                <div className="drag-handle">
+                  ⋮⋮
+                </div>
+              )}
               <h4>{setting.categoryName}</h4>
               <div className="setting-actions">
                 <button

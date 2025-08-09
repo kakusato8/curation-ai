@@ -5,6 +5,7 @@ export interface UserSetting {
   frequency: 'daily' | 'weekly' | 'monthly';
   weeklyDay?: number; // 0:日曜, 1:月曜...
   monthlyDay?: number; // 1-31
+  displayOrder?: number; // 表示順序
 }
 
 export interface UserSettings {

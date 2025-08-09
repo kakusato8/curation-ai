@@ -170,3 +170,29 @@ export const formatDateKey = (dateKey: string): string => {
     return '日付エラー';
   }
 };
+
+/**
+ * Truncate content to specified length
+ */
+export const truncateContent = (content: string, maxLength: number = 150): string => {
+  if (!content || content.length <= maxLength) return content;
+  return content.substring(0, maxLength) + '...';
+};
+
+/**
+ * Highlight search terms in text (returns JSX)
+ */
+export const highlightSearchTerm = (text: string, searchTerm: string): React.ReactNode => {
+  if (!searchTerm.trim() || !text) return text;
+  
+  const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  
+  return parts.map((part, index) => 
+    regex.test(part) ? (
+      React.createElement('mark', { key: index, className: 'search-highlight' }, part)
+    ) : (
+      part
+    )
+  );
+};
