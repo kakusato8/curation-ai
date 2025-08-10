@@ -56,7 +56,7 @@ export class DeliveryService {
         processedUsers++;
         this.logger.log(`Processing deliveries for user ${userId} (${userEmail})`);
 
-        // Check each setting for delivery
+        // Check each setting for delivery (sequential execution with interval for scheduled delivery)
         let userDeliveryCount = 0;
         for (const setting of userSettings.settings) {
           if (this.shouldDeliver(setting, dayOfWeek, dayOfMonth)) {
@@ -256,7 +256,7 @@ export class DeliveryService {
     let successful = 0;
     let failed = 0;
 
-    // Process all settings concurrently for better performance
+    // Process all settings concurrently for instant delivery (no interval required)
     const promises = settings.map(setting => this.generateContentResponse(userId, setting));
     const results = await Promise.all(promises);
 
@@ -399,15 +399,39 @@ export class DeliveryService {
 
     // Apply date range filters
     if (filters.startDate || filters.endDate) {
+      this.logger.log(`Applying date filters: startDate=${filters.startDate?.toISOString()}, endDate=${filters.endDate?.toISOString()}`);
+      
       results = results.filter(log => {
-        const logDate = filters.sortBy === 'generatedAt' && log.generatedAt 
-          ? new Date(log.generatedAt)
-          : new Date(log.deliveredAt);
+        // Safely handle date parsing
+        const rawDate = filters.sortBy === 'generatedAt' && log.generatedAt 
+          ? log.generatedAt
+          : log.deliveredAt;
+          
+        // Skip logs with invalid or missing dates
+        if (!rawDate) {
+          this.logger.warn(`Log ${log.id}: missing date field`);
+          return false;
+        }
         
-        if (filters.startDate && logDate < filters.startDate) return false;
-        if (filters.endDate && logDate > filters.endDate) return false;
-        return true;
+        const logDate = new Date(rawDate);
+        
+        // Skip logs with invalid dates
+        if (isNaN(logDate.getTime())) {
+          this.logger.warn(`Log ${log.id}: invalid date value: ${rawDate}`);
+          return false;
+        }
+        
+        const isInRange = !(
+          (filters.startDate && logDate < filters.startDate) ||
+          (filters.endDate && logDate > filters.endDate)
+        );
+        
+        this.logger.log(`Log ${log.id}: deliveredAt=${rawDate}, logDate=${logDate.toISOString()}, inRange=${isInRange}`);
+        
+        return isInRange;
       });
+      
+      this.logger.log(`After date filtering: ${results.length} results`);
     }
 
     // Apply text search filter
@@ -461,12 +485,16 @@ export class DeliveryService {
       const sortBy = options.sortBy || 'deliveredAt';
       const sortOrder = options.sortOrder || 'desc';
       results.sort((a, b) => {
-        const aVal = sortBy === 'generatedAt' && a.generatedAt 
-          ? new Date(a.generatedAt).getTime()
-          : new Date(a.deliveredAt).getTime();
-        const bVal = sortBy === 'generatedAt' && b.generatedAt 
-          ? new Date(b.generatedAt).getTime()
-          : new Date(b.deliveredAt).getTime();
+        // Safely parse dates for sorting
+        const aRawDate = sortBy === 'generatedAt' && a.generatedAt ? a.generatedAt : a.deliveredAt;
+        const bRawDate = sortBy === 'generatedAt' && b.generatedAt ? b.generatedAt : b.deliveredAt;
+        
+        const aDate = new Date(aRawDate || 0);
+        const bDate = new Date(bRawDate || 0);
+        
+        // Handle invalid dates by treating them as epoch (0)
+        const aVal = isNaN(aDate.getTime()) ? 0 : aDate.getTime();
+        const bVal = isNaN(bDate.getTime()) ? 0 : bDate.getTime();
         
         const result = aVal - bVal;
         return sortOrder === 'desc' ? -result : result;
@@ -595,9 +623,17 @@ export class DeliveryService {
           // First apply the requested sort
           let comparison = 0;
           if (sortBy === 'deliveredAt' && a.deliveredAt && b.deliveredAt) {
-            comparison = new Date(a.deliveredAt).getTime() - new Date(b.deliveredAt).getTime();
+            const aDate = new Date(a.deliveredAt);
+            const bDate = new Date(b.deliveredAt);
+            if (!isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
+              comparison = aDate.getTime() - bDate.getTime();
+            }
           } else if (sortBy === 'generatedAt' && a.generatedAt && b.generatedAt) {
-            comparison = new Date(a.generatedAt).getTime() - new Date(b.generatedAt).getTime();
+            const aDate = new Date(a.generatedAt);
+            const bDate = new Date(b.generatedAt);
+            if (!isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
+              comparison = aDate.getTime() - bDate.getTime();
+            }
           }
           
           if (comparison !== 0) {
@@ -719,8 +755,10 @@ export class DeliveryService {
         .map(doc => ({ id: doc.id, ...doc.data() } as DeliveryLog))
         .filter(log => log.categoryName === categoryName && log.status === 'success')
         .sort((a, b) => {
-          const aTime = new Date(a.deliveredAt).getTime();
-          const bTime = new Date(b.deliveredAt).getTime();
+          const aDate = new Date(a.deliveredAt || 0);
+          const bDate = new Date(b.deliveredAt || 0);
+          const aTime = isNaN(aDate.getTime()) ? 0 : aDate.getTime();
+          const bTime = isNaN(bDate.getTime()) ? 0 : bDate.getTime();
           return bTime - aTime; // desc order
         })
         .slice(0, limit);

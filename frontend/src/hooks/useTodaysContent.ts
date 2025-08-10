@@ -18,10 +18,18 @@ export const useTodaysContent = () => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
-      // 本日の開始と終了時刻を設定
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+      // 日本時間で本日の開始と終了時刻を設定
+      const now = new Date();
+      
+      // 日本時間での今日の日付を取得
+      const jstOffset = 9 * 60; // JST = UTC + 9 hours (in minutes)
+      const localTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const jstTime = localTime + (jstOffset * 60000);
+      const jstDate = new Date(jstTime);
+      
+      // JST基準での本日の開始と終了を計算
+      const startOfDay = new Date(jstDate.getFullYear(), jstDate.getMonth(), jstDate.getDate());
+      const endOfDay = new Date(jstDate.getFullYear(), jstDate.getMonth(), jstDate.getDate() + 1);
 
       const filters: ContentArchiveFilters = {
         startDate: startOfDay,
@@ -30,7 +38,24 @@ export const useTodaysContent = () => {
         sortOrder: 'desc',
       };
 
+      console.log('Today\'s content filter (JST-based):', {
+        startDate: startOfDay.toISOString(),
+        endDate: endOfDay.toISOString(),
+        currentJST: jstDate.toISOString(),
+        currentUTC: now.toISOString()
+      });
+
       const result = await apiClient.getContentArchive(filters);
+      
+      console.log('Today\'s content results:', {
+        totalLogs: result.logs.length,
+        logs: result.logs.map(log => ({
+          id: log.id,
+          categoryName: log.categoryName,
+          deliveredAt: log.deliveredAt,
+          deliveredAtISO: new Date(log.deliveredAt).toISOString()
+        }))
+      });
       
       setState({
         content: result.logs,

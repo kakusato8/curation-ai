@@ -125,6 +125,17 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleBatchContentDelivery = async () => {
+    // Show confirmation dialog
+    const settingCount = settings.length;
+    
+    const confirmed = window.confirm(
+      `全ての設定（${settingCount}件）のコンテンツを並列生成します。\n\n` +
+      `処理時間: 数分程度\n\n` +
+      `続行しますか？`
+    );
+    
+    if (!confirmed) return;
+
     setContentDisplay({
       content: null,
       loading: true,
@@ -146,6 +157,78 @@ export const Dashboard: React.FC = () => {
         content: null,
         loading: false,
         error: error instanceof Error ? error.message : 'コンテンツの生成に失敗しました',
+        visible: true,
+      });
+    }
+  };
+
+  const handleGroupBatchContentDelivery = async (frequency: string) => {
+    // Filter settings by frequency
+    const groupSettings = settings.filter(setting => setting.frequency === frequency);
+    
+    if (groupSettings.length === 0) {
+      alert(`${frequency}の設定が見つかりません`);
+      return;
+    }
+
+    // Show confirmation dialog
+    const settingCount = groupSettings.length;
+    
+    const confirmed = window.confirm(
+      `${frequency}の設定（${settingCount}件）のコンテンツを生成します。\n\n` +
+      `処理時間: 数分程度\n\n` +
+      `続行しますか？`
+    );
+    
+    if (!confirmed) return;
+
+    setContentDisplay({
+      content: null,
+      loading: true,
+      error: null,
+      visible: true,
+    });
+
+    try {
+      // Generate content for each setting in the group
+      const results: DeliveryContentResponse[] = [];
+      for (const setting of groupSettings) {
+        try {
+          const content = await apiClient.instantContentDelivery(setting.id);
+          results.push(content);
+        } catch (error) {
+          console.error(`Failed to generate content for ${setting.categoryName}:`, error);
+        }
+      }
+
+      // Create a batch response structure
+      const batchResponse: BatchDeliveryResponse = {
+        contents: results,
+        totalProcessed: groupSettings.length,
+        successful: results.length,
+        failed: groupSettings.length - results.length,
+        errors: groupSettings.filter(setting => 
+          !results.some(result => result.settingId === setting.id)
+        ).map(setting => ({
+          settingId: setting.id,
+          categoryName: setting.categoryName,
+          error: 'コンテンツ生成に失敗しました'
+        })),
+        generatedAt: new Date().toISOString()
+      };
+
+      setContentDisplay({
+        content: batchResponse,
+        loading: false,
+        error: null,
+        visible: true,
+      });
+    } catch (error) {
+      console.error('Group batch content delivery failed:', error);
+      setContentDisplay({
+        content: null,
+        loading: false,
+        error: error instanceof Error ? error.message : 'グループコンテンツの生成に失敗しました',
         visible: true,
       });
     }
@@ -194,7 +277,10 @@ export const Dashboard: React.FC = () => {
     <div className="dashboard">
       <header className="dashboard-header">
         <div className="header-content">
-          <h1>curation-ai</h1>
+          <h1>
+            <img src="/favicon.png" alt="curation-ai" className="title-icon" />
+            curation-ai
+          </h1>
           <div className="user-info">
             <span>ようこそ、{user?.email}さん</span>
             <button onClick={logout} className="logout-btn">ログアウト</button>
@@ -267,6 +353,7 @@ export const Dashboard: React.FC = () => {
                 onBatchContent={handleBatchContentDelivery}
                 onShowHistory={handleShowHistory}
                 onReorder={handleReorderSettings}
+                onGroupBatchContent={handleGroupBatchContentDelivery}
               />
             )}
           </div>

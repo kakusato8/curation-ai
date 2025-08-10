@@ -55,9 +55,9 @@ export const api = onRequest({
   invoker: 'public',
 }, server);
 
-// Scheduled delivery function - runs every day at 8:50 AM JST
+// Scheduled delivery function - runs every day at 5:00 AM JST
 export const scheduledDelivery = onSchedule({
-  schedule: '50 8 * * *',
+  schedule: '0 5 * * *',
   timeZone: 'Asia/Tokyo',
   memory: '1GiB',
   timeoutSeconds: 540,
