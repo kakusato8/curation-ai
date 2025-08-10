@@ -194,7 +194,7 @@ export const Dashboard: React.FC = () => {
     <div className="dashboard">
       <header className="dashboard-header">
         <div className="header-content">
-          <h1>個人情報配信システム</h1>
+          <h1>curation-ai</h1>
           <div className="user-info">
             <span>ようこそ、{user?.email}さん</span>
             <button onClick={logout} className="logout-btn">ログアウト</button>
