@@ -55,6 +55,10 @@ export const TodaysContent: React.FC<TodaysContentProps> = ({ onContentClick }) 
         </div>
         <div className="todays-content-empty">
           <p>本日はまだコンテンツが配信されていません</p>
+          <div className="debug-info" style={{fontSize: '0.8em', color: '#666', marginTop: '10px'}}>
+            <p>デバッグ情報: ブラウザの開発者ツール (F12) のコンソールを確認してください</p>
+            <p>コンテンツを生成するには「設定」タブでカテゴリを作成し、「即座に配信」をお試しください</p>
+          </div>
         </div>
       </div>
     );

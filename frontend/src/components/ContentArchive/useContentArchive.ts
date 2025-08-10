@@ -5,7 +5,7 @@ import {
   ContentArchiveResponse, 
   ContentArchiveFilters 
 } from '../../utils/api'
-import { getDateGroupLabel, getDateKey, formatDateKey } from '../../utils/dateUtils'
+import { getDateGroupLabel, getDateKey, formatDateKey, parseFirestoreDate } from '../../utils/dateUtils'
 
 export interface UseContentArchiveOptions {
   onError?: (error: string) => void
@@ -332,8 +332,8 @@ export const useContentArchive = (options?: UseContentArchiveOptions) => {
       group: label,
       label,
       items: items.sort((a, b) => {
-        const dateA = new Date(a.deliveredAt).getTime()
-        const dateB = new Date(b.deliveredAt).getTime()
+        const dateA = parseFirestoreDate(a.deliveredAt)?.getTime() || 0
+        const dateB = parseFirestoreDate(b.deliveredAt)?.getTime() || 0
         return dateB - dateA // Most recent first within each group
       })
     }))
@@ -360,8 +360,8 @@ export const useContentArchive = (options?: UseContentArchiveOptions) => {
       dateKey,
       displayDate: formatDateKey(dateKey),
       items: groups[dateKey].sort((a, b) => {
-        const dateA = new Date(a.deliveredAt).getTime()
-        const dateB = new Date(b.deliveredAt).getTime()
+        const dateA = parseFirestoreDate(a.deliveredAt)?.getTime() || 0
+        const dateB = parseFirestoreDate(b.deliveredAt)?.getTime() || 0
         return dateA - dateB // Chronological order within each day
       })
     }))

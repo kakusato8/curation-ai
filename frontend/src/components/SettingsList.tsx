@@ -10,6 +10,7 @@ interface SettingsListProps {
   onBatchContent: () => void;
   onShowHistory?: (categoryName: string) => void;
   onReorder?: (settingIds: string[]) => void;
+  onGroupBatchContent?: (frequency: string) => void;
 }
 
 export const SettingsList: React.FC<SettingsListProps> = ({ 
@@ -20,7 +21,8 @@ export const SettingsList: React.FC<SettingsListProps> = ({
   onInstantContent,
   onBatchContent,
   onShowHistory,
-  onReorder
+  onReorder,
+  onGroupBatchContent
 }) => {
   const [loadingDelivery, setLoadingDelivery] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ settingId: string; groupType: string; index: number } | null>(null);
@@ -59,6 +61,12 @@ export const SettingsList: React.FC<SettingsListProps> = ({
 
   const handleBatchContent = () => {
     onBatchContent();
+  };
+
+  const handleGroupBatchContent = (frequency: string) => {
+    if (onGroupBatchContent) {
+      onGroupBatchContent(frequency);
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, setting: UserSetting, groupType: string, index: number) => {
@@ -149,8 +157,19 @@ export const SettingsList: React.FC<SettingsListProps> = ({
           group.settings.length > 0 && (
             <div key={groupType} className="settings-group">
               <div className="group-header">
-                <h4>{group.title}</h4>
-                <span className="group-count">({group.settings.length}件)</span>
+                <div className="group-title-section">
+                  <h4>{group.title}</h4>
+                  <span className="group-count">({group.settings.length}件)</span>
+                </div>
+                {onGroupBatchContent && group.settings.length > 0 && (
+                  <button
+                    className="group-batch-btn"
+                    onClick={() => handleGroupBatchContent(groupType)}
+                    title={`${group.title}の全設定のコンテンツを生成`}
+                  >
+                    {group.title}全設定を生成
+                  </button>
+                )}
               </div>
               
               <div className="settings-grid">

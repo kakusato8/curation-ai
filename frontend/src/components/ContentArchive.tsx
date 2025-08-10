@@ -5,7 +5,7 @@ import {
   ContentArchiveResponse, 
   ContentArchiveFilters 
 } from '../utils/api';
-import { formatDate, getDateGroupLabel, getDateKey, formatDateKey } from '../utils/dateUtils';
+import { formatDate, getDateGroupLabel, getDateKey, formatDateKey, parseFirestoreDate } from '../utils/dateUtils';
 import MarkdownRenderer from './MarkdownRenderer';
 
 interface ContentArchiveProps {
@@ -179,8 +179,8 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
       group: label,
       label,
       items: items.sort((a, b) => {
-        const dateA = new Date(a.deliveredAt).getTime();
-        const dateB = new Date(b.deliveredAt).getTime();
+        const dateA = parseFirestoreDate(a.deliveredAt)?.getTime() || 0;
+        const dateB = parseFirestoreDate(b.deliveredAt)?.getTime() || 0;
         return dateB - dateA; // Most recent first within each group
       })
     }));
@@ -205,8 +205,8 @@ const ContentArchive: React.FC<ContentArchiveProps> = ({ onClose }) => {
       dateKey,
       displayDate: formatDateKey(dateKey),
       items: groups[dateKey].sort((a, b) => {
-        const dateA = new Date(a.deliveredAt).getTime();
-        const dateB = new Date(b.deliveredAt).getTime();
+        const dateA = parseFirestoreDate(a.deliveredAt)?.getTime() || 0;
+        const dateB = parseFirestoreDate(b.deliveredAt)?.getTime() || 0;
         return dateA - dateB; // Chronological order within each day
       })
     }));

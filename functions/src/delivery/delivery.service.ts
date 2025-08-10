@@ -367,6 +367,69 @@ export class DeliveryService {
     }
   }
 
+  /**
+   * Parse various Firestore date formats including timestamps and regular dates
+   * Enhanced with better validation and error handling
+   */
+  private parseFirestoreDate(dateValue: any): Date | null {
+    // Handle null, undefined, or empty values
+    if (!dateValue && dateValue !== 0) {
+      return null;
+    }
+    
+    try {
+      // Handle Firestore Timestamp objects with underscore format: {_seconds: 123, _nanoseconds: 456}
+      if (typeof dateValue === 'object' && dateValue !== null && typeof dateValue._seconds === 'number') {
+        const seconds = dateValue._seconds;
+        const nanoseconds = dateValue._nanoseconds || 0;
+        // Validate seconds are within reasonable range
+        if (seconds < 0 || seconds > 4102444800) { // year 2100
+          this.logger.warn(`Invalid timestamp seconds: ${seconds}`);
+          return null;
+        }
+        const date = new Date(seconds * 1000 + nanoseconds / 1000000);
+        return isNaN(date.getTime()) ? null : date;
+      }
+      
+      // Handle Firestore Timestamp objects with standard format: {seconds: 123, nanoseconds: 456}
+      if (typeof dateValue === 'object' && dateValue !== null && typeof dateValue.seconds === 'number') {
+        const seconds = dateValue.seconds;
+        const nanoseconds = dateValue.nanoseconds || 0;
+        // Validate seconds are within reasonable range
+        if (seconds < 0 || seconds > 4102444800) { // year 2100
+          this.logger.warn(`Invalid timestamp seconds: ${seconds}`);
+          return null;
+        }
+        const date = new Date(seconds * 1000 + nanoseconds / 1000000);
+        return isNaN(date.getTime()) ? null : date;
+      }
+      
+      // Handle Firebase Timestamp objects with toDate method
+      if (typeof dateValue === 'object' && dateValue !== null && typeof dateValue.toDate === 'function') {
+        try {
+          const date = dateValue.toDate();
+          return isNaN(date.getTime()) ? null : date;
+        } catch (error) {
+          this.logger.warn('Error calling toDate():', error);
+          return null;
+        }
+      }
+      
+      // Handle regular Date objects
+      if (dateValue instanceof Date) {
+        return isNaN(dateValue.getTime()) ? null : dateValue;
+      }
+      
+      // Handle string/number formats
+      const parsed = new Date(dateValue);
+      return isNaN(parsed.getTime()) ? null : parsed;
+      
+    } catch (error) {
+      this.logger.warn(`Failed to parse date: ${dateValue}`, error);
+      return null;
+    }
+  }
+
   private applyClientSideFilters(
     logs: DeliveryLog[], 
     filters: {
@@ -413,10 +476,11 @@ export class DeliveryService {
           return false;
         }
         
-        const logDate = new Date(rawDate);
+        // Enhanced date parsing for various formats including Firestore timestamps  
+        const logDate = this.parseFirestoreDate(rawDate);
         
         // Skip logs with invalid dates
-        if (isNaN(logDate.getTime())) {
+        if (!logDate || isNaN(logDate.getTime())) {
           this.logger.warn(`Log ${log.id}: invalid date value: ${rawDate}`);
           return false;
         }
@@ -485,16 +549,16 @@ export class DeliveryService {
       const sortBy = options.sortBy || 'deliveredAt';
       const sortOrder = options.sortOrder || 'desc';
       results.sort((a, b) => {
-        // Safely parse dates for sorting
+        // Safely parse dates for sorting using enhanced date parser
         const aRawDate = sortBy === 'generatedAt' && a.generatedAt ? a.generatedAt : a.deliveredAt;
         const bRawDate = sortBy === 'generatedAt' && b.generatedAt ? b.generatedAt : b.deliveredAt;
         
-        const aDate = new Date(aRawDate || 0);
-        const bDate = new Date(bRawDate || 0);
+        const aDate = this.parseFirestoreDate(aRawDate);
+        const bDate = this.parseFirestoreDate(bRawDate);
         
         // Handle invalid dates by treating them as epoch (0)
-        const aVal = isNaN(aDate.getTime()) ? 0 : aDate.getTime();
-        const bVal = isNaN(bDate.getTime()) ? 0 : bDate.getTime();
+        const aVal = aDate ? aDate.getTime() : 0;
+        const bVal = bDate ? bDate.getTime() : 0;
         
         const result = aVal - bVal;
         return sortOrder === 'desc' ? -result : result;
@@ -623,15 +687,15 @@ export class DeliveryService {
           // First apply the requested sort
           let comparison = 0;
           if (sortBy === 'deliveredAt' && a.deliveredAt && b.deliveredAt) {
-            const aDate = new Date(a.deliveredAt);
-            const bDate = new Date(b.deliveredAt);
-            if (!isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
+            const aDate = this.parseFirestoreDate(a.deliveredAt);
+            const bDate = this.parseFirestoreDate(b.deliveredAt);
+            if (aDate && bDate && !isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
               comparison = aDate.getTime() - bDate.getTime();
             }
           } else if (sortBy === 'generatedAt' && a.generatedAt && b.generatedAt) {
-            const aDate = new Date(a.generatedAt);
-            const bDate = new Date(b.generatedAt);
-            if (!isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
+            const aDate = this.parseFirestoreDate(a.generatedAt);
+            const bDate = this.parseFirestoreDate(b.generatedAt);
+            if (aDate && bDate && !isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
               comparison = aDate.getTime() - bDate.getTime();
             }
           }
@@ -755,10 +819,10 @@ export class DeliveryService {
         .map(doc => ({ id: doc.id, ...doc.data() } as DeliveryLog))
         .filter(log => log.categoryName === categoryName && log.status === 'success')
         .sort((a, b) => {
-          const aDate = new Date(a.deliveredAt || 0);
-          const bDate = new Date(b.deliveredAt || 0);
-          const aTime = isNaN(aDate.getTime()) ? 0 : aDate.getTime();
-          const bTime = isNaN(bDate.getTime()) ? 0 : bDate.getTime();
+          const aDate = this.parseFirestoreDate(a.deliveredAt);
+          const bDate = this.parseFirestoreDate(b.deliveredAt);
+          const aTime = aDate ? aDate.getTime() : 0;
+          const bTime = bDate ? bDate.getTime() : 0;
           return bTime - aTime; // desc order
         })
         .slice(0, limit);
@@ -1235,4 +1299,5 @@ export class DeliveryService {
       };
     }
   }
+
 }

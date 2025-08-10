@@ -13,36 +13,61 @@ export interface FirestoreTimestamp {
  * including underscore-prefixed formats from different serialization layers
  */
 export const parseFirestoreDate = (dateString: string | Date | FirestoreTimestamp | any): Date | null => {
-  if (!dateString) {
+  // Handle null, undefined, or empty values
+  if (!dateString && dateString !== 0) {
     return null;
   }
 
   try {
     // Handle various Firestore timestamp formats
-    if (typeof dateString === 'object') {
+    if (typeof dateString === 'object' && dateString !== null) {
       // Handle underscore-prefixed Firestore timestamp: {_seconds: 1754595741, _nanoseconds: 400000000}
-      if (dateString._seconds !== undefined) {
-        return new Date(dateString._seconds * 1000 + (dateString._nanoseconds || 0) / 1000000);
+      if (typeof dateString._seconds === 'number') {
+        const seconds = dateString._seconds;
+        const nanoseconds = dateString._nanoseconds || 0;
+        // Validate seconds are within reasonable range (not negative and not in far future)
+        if (seconds < 0 || seconds > 4102444800) { // year 2100
+          console.warn('Invalid timestamp seconds:', seconds);
+          return null;
+        }
+        const date = new Date(seconds * 1000 + nanoseconds / 1000000);
+        return isNaN(date.getTime()) ? null : date;
       }
       // Handle standard Firestore timestamp: {seconds: 1754595741, nanoseconds: 400000000}
-      else if (dateString.seconds !== undefined) {
-        return new Date(dateString.seconds * 1000 + (dateString.nanoseconds || 0) / 1000000);
+      else if (typeof dateString.seconds === 'number') {
+        const seconds = dateString.seconds;
+        const nanoseconds = dateString.nanoseconds || 0;
+        // Validate seconds are within reasonable range
+        if (seconds < 0 || seconds > 4102444800) { // year 2100
+          console.warn('Invalid timestamp seconds:', seconds);
+          return null;
+        }
+        const date = new Date(seconds * 1000 + nanoseconds / 1000000);
+        return isNaN(date.getTime()) ? null : date;
       }
       // Handle if it's already a Date object
       else if (dateString instanceof Date) {
-        return dateString;
+        return isNaN(dateString.getTime()) ? null : dateString;
       }
       // Handle Firebase Timestamp objects with toDate method
       else if (typeof dateString.toDate === 'function') {
-        return dateString.toDate();
+        try {
+          const date = dateString.toDate();
+          return isNaN(date.getTime()) ? null : date;
+        } catch (error) {
+          console.warn('Error calling toDate():', error);
+          return null;
+        }
       }
       // Try to convert object to date as fallback
       else {
-        return new Date(dateString);
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? null : date;
       }
     } else {
-      // Handle string or number formats
-      return new Date(dateString);
+      // Handle string, number, or other primitive formats
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) ? null : date;
     }
   } catch (error) {
     console.error('Error parsing Firestore date:', error, 'Input:', dateString);
@@ -75,8 +100,8 @@ export const formatDate = (dateString: string | Date | FirestoreTimestamp | any)
  */
 export const formatSimpleDate = (dateString: string): string => {
   try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
+    const date = parseFirestoreDate(dateString);
+    if (!date || isNaN(date.getTime())) {
       return '不正な日時';
     }
     

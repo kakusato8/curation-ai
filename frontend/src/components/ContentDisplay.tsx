@@ -101,6 +101,20 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
                           </div>
                           <div className="content-footer">
                             <small>生成日時: {formatDate(item.generatedAt)}</small>
+                            {(item.modelUsed || item.searchExecuted !== undefined) && (
+                              <div className="ai-metadata">
+                                {item.modelUsed && (
+                                  <span className="model-info">
+                                    🤖 モデル: {item.modelUsed}
+                                  </span>
+                                )}
+                                {item.searchExecuted !== undefined && (
+                                  <span className={`search-info ${item.searchExecuted ? 'executed' : 'not-executed'}`}>
+                                    🔍 検索: {item.searchExecuted ? '実行済み' : '未実行'}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -130,6 +144,20 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
                   
                   <div className="content-footer">
                     <small>生成日時: {formatDate(content.generatedAt)}</small>
+                    {(content.modelUsed || content.searchExecuted !== undefined) && (
+                      <div className="ai-metadata">
+                        {content.modelUsed && (
+                          <span className="model-info">
+                            🤖 モデル: {content.modelUsed}
+                          </span>
+                        )}
+                        {content.searchExecuted !== undefined && (
+                          <span className={`search-info ${content.searchExecuted ? 'executed' : 'not-executed'}`}>
+                            🔍 検索: {content.searchExecuted ? '実行済み' : '未実行'}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

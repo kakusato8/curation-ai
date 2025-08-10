@@ -38,8 +38,14 @@ export class DeliveryController {
       limit: limit ? parseInt(limit, 10) : 50,
       status,
       deliveryType,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+      startDate: startDate ? (() => {
+        const date = new Date(startDate);
+        return isNaN(date.getTime()) ? undefined : date;
+      })() : undefined,
+      endDate: endDate ? (() => {
+        const date = new Date(endDate);
+        return isNaN(date.getTime()) ? undefined : date;
+      })() : undefined,
       searchText,
       categoryName,
       sortBy: sortBy || 'deliveredAt',
@@ -100,8 +106,14 @@ export class DeliveryController {
     const options = {
       limit: limit ? parseInt(limit, 10) : 50,
       categoryName,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+      startDate: startDate ? (() => {
+        const date = new Date(startDate);
+        return isNaN(date.getTime()) ? undefined : date;
+      })() : undefined,
+      endDate: endDate ? (() => {
+        const date = new Date(endDate);
+        return isNaN(date.getTime()) ? undefined : date;
+      })() : undefined,
       searchText,
       sortBy: sortBy || 'deliveredAt',
       sortOrder: sortOrder || 'desc'

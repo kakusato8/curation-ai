@@ -43,6 +43,10 @@ export interface DeliveryContentResponse {
   generatedAt: string;
   success: boolean;
   error?: string;
+  // AI処理情報
+  modelUsed?: string;
+  searchExecuted?: boolean;
+  processingTimestamp?: string;
 }
 
 export interface BatchDeliveryResponse {

@@ -275,10 +275,41 @@ body {
 .group-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   margin-bottom: 20px;
   padding-bottom: 12px;
   border-bottom: 2px solid #e0e0e0;
+}
+
+.group-title-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.group-batch-btn {
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.group-batch-btn:hover {
+  background: #219a52;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(39, 174, 96, 0.3);
+}
+
+.group-batch-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(39, 174, 96, 0.3);
 }
 
 .group-header h4 {
@@ -1295,6 +1326,35 @@ body {
   }
 }
 
+/* AI Metadata Styles */
+.ai-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.model-info {
+  color: #007bff;
+  font-weight: 500;
+}
+
+.search-info {
+  font-weight: 500;
+}
+
+.search-info.executed {
+  color: #28a745;
+}
+
+.search-info.not-executed {
+  color: #dc3545;
+}
+
 /* Content Display Modal Styles */
 .content-display-overlay {
   position: fixed;
@@ -1640,6 +1700,15 @@ button:disabled {
 .header-content h1 {
   color: #2c3e50;
   font-size: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
 }
 
 .user-info {

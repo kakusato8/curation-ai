@@ -61,7 +61,9 @@ export class GeminiService {
     );
   }
 
-  async generateContent(query: string): Promise<string> {
+  async generateContent(query: string): Promise<string>;
+  async generateContent(query: string, includeMetadata: boolean): Promise<{ content: string; modelUsed: string; searchExecuted: boolean; timestamp: string }>;
+  async generateContent(query: string, includeMetadata?: boolean): Promise<string | { content: string; modelUsed: string; searchExecuted: boolean; timestamp: string }> {
     return this.retryWithBackoff(async () => {
       try {
         const models = ['gemini-2.0-flash-exp', 'gemini-1.5-flash-002', 'gemini-1.5-pro-002'];
@@ -71,11 +73,10 @@ export class GeminiService {
           try {
             this.logger.log(`Attempting content generation with model: ${modelName} for query: ${query.substring(0, 50)}...`);
             
-            // Use different tool configuration based on model version
-            const isGemini2 = modelName.includes('2.0');
-            const tools: any[] = isGemini2 ? 
-              [{ googleSearch: {} }] : 
-              [{ googleSearchRetrieval: { dynamicRetrievalConfig: { mode: 'MODE_DYNAMIC', dynamicThreshold: 0.7 } } }];
+            // 診断結果に基づく正しいツール設定：全てのモデルでgoogleSearchRetrievalを使用
+            const tools: any[] = [
+              { googleSearchRetrieval: { dynamicRetrievalConfig: { mode: 'MODE_DYNAMIC', dynamicThreshold: 0.2 } } }
+            ];
             
             const model = this.genAI.getGenerativeModel({ 
               model: modelName,
@@ -153,7 +154,20 @@ export class GeminiService {
             }
             
             this.logger.log(`Successfully generated content with ${modelName} and grounding for query: ${query}`);
-            return text + (groundingInfo ? `\n\n---\n### 検索実行情報\n${groundingInfo}` : '');
+            
+            const finalContent = text + (groundingInfo ? `\n\n---\n### 検索実行情報\n${groundingInfo}` : '');
+            const jstDate = new Date(Date.now() + (9 * 60 * 60 * 1000));
+            
+            if (includeMetadata) {
+              return {
+                content: finalContent,
+                modelUsed: modelName,
+                searchExecuted: !!groundingInfo,
+                timestamp: jstDate.toISOString()
+              };
+            }
+            
+            return finalContent;
             
           } catch (modelError) {
             lastError = modelError as Error;
@@ -193,7 +207,19 @@ export class GeminiService {
         // Google Search Grounding が利用できない場合のフォールバック
         if (errorMessage.includes('googleSearch') || errorMessage.includes('grounding')) {
           this.logger.warn('Google Search Grounding failed, attempting without grounding...');
-          return this.generateContentWithoutGrounding(query);
+          const fallbackResult = await this.generateContentWithoutGrounding(query);
+          
+          if (includeMetadata) {
+            const jstTime = new Date(Date.now() + (9 * 60 * 60 * 1000));
+            return {
+              content: fallbackResult,
+              modelUsed: 'gemini-1.5-flash-002-fallback',
+              searchExecuted: false,
+              timestamp: jstTime.toISOString()
+            };
+          }
+          
+          return fallbackResult;
         }
         
         throw new Error(`Failed to generate content: ${errorMessage}`);
@@ -308,11 +334,10 @@ export class GeminiService {
           try {
             this.logger.log(`Attempting grounded generation with ${modelName} for: ${query.substring(0, 50)}...`);
             
-            // Use different tool configuration based on model version
-            const isGemini2 = modelName.includes('2.0');
-            const tools: any[] = isGemini2 ? 
-              [{ googleSearch: {} }] : 
-              [{ googleSearchRetrieval: { dynamicRetrievalConfig: { mode: 'MODE_DYNAMIC', dynamicThreshold: searchThreshold } } }];
+            // 診断結果に基づく正しいツール設定：全てのモデルでgoogleSearchRetrievalを使用
+            const tools: any[] = [
+              { googleSearchRetrieval: { dynamicRetrievalConfig: { mode: 'MODE_DYNAMIC', dynamicThreshold: searchThreshold } } }
+            ];
             
             const model = this.genAI.getGenerativeModel({
               model: modelName,
