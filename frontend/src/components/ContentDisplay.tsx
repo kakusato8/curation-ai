@@ -91,7 +91,7 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
                         <div key={item.settingId} className="content-item">
                           <div className="content-header">
                             <h5>{item.categoryName}</h5>
-                            <small>クエリ: {item.query}</small>
+                            {/* クエリ表示を削除（冗長性対策） */}
                           </div>
                           <div className="content-body">
                             <MarkdownRenderer 
@@ -111,7 +111,7 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
                 <div className="single-content">
                   <div className="content-header">
                     <h4>{content.categoryName}</h4>
-                    <small>クエリ: {content.query}</small>
+                    {/* クエリ表示を削除（冗長性対策） */}
                   </div>
                   
                   {content.success ? (

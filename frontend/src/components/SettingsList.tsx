@@ -170,11 +170,6 @@ export const SettingsList: React.FC<SettingsListProps> = ({
                     onDragEnd={handleDragEnd}
                   >
                     <div className="setting-header">
-                      {onReorder && (
-                        <div className="drag-handle">
-                          ⋮⋮
-                        </div>
-                      )}
                       <h4>{setting.categoryName}</h4>
                       <div className="setting-actions">
                         <button

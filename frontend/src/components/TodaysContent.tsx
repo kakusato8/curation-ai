@@ -94,7 +94,7 @@ export const TodaysContent: React.FC<TodaysContentProps> = ({ onContentClick }) 
             {item.geminiQuery && (
               <div className="content-item-query">
                 <details>
-                  <summary>生成クエリ</summary>
+                  <summary>生成に使用したクエリを表示</summary>
                   <p>{item.geminiQuery}</p>
                 </details>
               </div>
