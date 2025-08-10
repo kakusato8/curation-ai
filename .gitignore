@@ -40,3 +40,4 @@ functions/.env.development
 *.njsproj
 *.sln
 *.sw?
+/dist-frontend/
