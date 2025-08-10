@@ -468,8 +468,6 @@ export const ContentArchiveRefactored: React.FC<ContentArchiveRefactoredProps> =
               {renderContent()}
             </>
           )}
-        </div>
-
       </div>
 
       <ContentDeleteDialog

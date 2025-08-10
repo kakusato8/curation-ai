@@ -932,4 +932,269 @@ export class DeliveryService {
       throw new Error(`Cleanup failed: ${errorMessage}`);
     }
   }
+
+  // Enhanced diagnostic methods
+  async getDetailedDatabaseStatus(): Promise<{
+    users: any[];
+    userSettings: any[];
+    deliveryLogs: any[];
+    timestamp: string;
+  }> {
+    this.logger.log('Getting detailed database status...');
+    
+    const firestore = this.firebaseService.getFirestore();
+    
+    try {
+      // Get all users
+      const usersSnapshot = await firestore.collection('users').get();
+      const users = usersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Get all user_settings
+      const settingsSnapshot = await firestore.collection('user_settings').get();
+      const userSettings = settingsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Get recent delivery_logs (last 20)
+      const logsSnapshot = await firestore
+        .collection('delivery_logs')
+        .orderBy('deliveredAt', 'desc')
+        .limit(20)
+        .get();
+      const deliveryLogs = logsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      return {
+        users,
+        userSettings,
+        deliveryLogs,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get detailed database status: ${errorMessage}`);
+      throw new Error(`Failed to get detailed database status: ${errorMessage}`);
+    }
+  }
+
+  // Recovery method to restore users collection from existing data
+  async recoverUsersFromSettings(): Promise<{
+    recoveredUsers: string[];
+    errors: Array<{ userId: string; error: string }>;
+  }> {
+    this.logger.log('Starting user recovery from settings...');
+    
+    const firestore = this.firebaseService.getFirestore();
+    const recoveredUsers: string[] = [];
+    const errors: Array<{ userId: string; error: string }> = [];
+    
+    try {
+      // Get all user_settings
+      const settingsSnapshot = await firestore.collection('user_settings').get();
+      
+      for (const doc of settingsSnapshot.docs) {
+        const userSettings = doc.data();
+        const userId = userSettings.userId;
+        
+        try {
+          // Check if user already exists
+          const userDoc = await firestore.collection('users').doc(userId).get();
+          
+          if (!userDoc.exists) {
+            // Create user document with minimal required data
+            const userData = {
+              uid: userId,
+              email: `user-${userId}@example.com`, // Placeholder email
+              displayName: `User ${userId.substring(0, 8)}`, // Shortened display name
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              emailVerified: true,
+              // Add any other required fields
+            };
+            
+            await firestore.collection('users').doc(userId).set(userData);
+            recoveredUsers.push(userId);
+            this.logger.log(`Recovered user: ${userId}`);
+          } else {
+            this.logger.log(`User ${userId} already exists, skipping`);
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errors.push({ userId, error: errorMessage });
+          this.logger.error(`Failed to recover user ${userId}: ${errorMessage}`);
+        }
+      }
+      
+      this.logger.log(`User recovery completed: ${recoveredUsers.length} users recovered, ${errors.length} errors`);
+      
+      return { recoveredUsers, errors };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`User recovery failed: ${errorMessage}`);
+      throw new Error(`User recovery failed: ${errorMessage}`);
+    }
+  }
+
+  // Check specific user data by email
+  async checkUserByEmail(email: string): Promise<{
+    firebaseAuth: any | null;
+    firestoreUser: any | null;
+    userSettings: any | null;
+    deliveryLogs: any[];
+    authUid: string | null;
+    firestoreUserId: string | null;
+    settingsUserId: string | null;
+    isDataConsistent: boolean;
+    issues: string[];
+  }> {
+    this.logger.log(`Checking user data for email: ${email}`);
+    
+    const firestore = this.firebaseService.getFirestore();
+    const auth = this.firebaseService.getAuth();
+    const issues: string[] = [];
+    
+    try {
+      // 1. Check Firebase Auth
+      let firebaseAuthUser = null;
+      let authUid = null;
+      try {
+        firebaseAuthUser = await auth.getUserByEmail(email);
+        authUid = firebaseAuthUser.uid;
+      } catch (error) {
+        issues.push(`Firebase Auth user not found for email: ${email}`);
+      }
+
+      // 2. Check Firestore users collection
+      let firestoreUser = null;
+      let firestoreUserId = null;
+      if (authUid) {
+        const userDoc = await firestore.collection('users').doc(authUid).get();
+        if (userDoc.exists) {
+          firestoreUser = { id: userDoc.id, ...userDoc.data() };
+          firestoreUserId = userDoc.id;
+        } else {
+          issues.push(`Firestore user document not found for UID: ${authUid}`);
+        }
+      }
+
+      // 3. Check user_settings collection
+      let userSettings = null;
+      let settingsUserId = null;
+      
+      // Try to find settings by authUid first
+      if (authUid) {
+        const settingsQuery = await firestore
+          .collection('user_settings')
+          .where('userId', '==', authUid)
+          .get();
+        
+        if (!settingsQuery.empty) {
+          const settingsData = settingsQuery.docs[0].data();
+          userSettings = { id: settingsQuery.docs[0].id, ...settingsData };
+          settingsUserId = settingsData.userId;
+        }
+      }
+
+      // If not found by authUid, mark as issue
+      if (!userSettings) {
+        issues.push(`user_settings not found for user`);
+      }
+
+      // 4. Check delivery logs (using simple query to avoid index issues)
+      let deliveryLogs: any[] = [];
+      if (authUid) {
+        try {
+          const logsQuery = await firestore
+            .collection('delivery_logs')
+            .where('userId', '==', authUid)
+            .limit(10)
+            .get();
+          
+          deliveryLogs = logsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+          // If query fails due to index issues, skip delivery logs check
+          issues.push(`Could not retrieve delivery logs: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      // 5. Check consistency
+      const isDataConsistent = authUid === firestoreUserId && authUid === settingsUserId;
+      
+      if (!isDataConsistent) {
+        issues.push(`Data inconsistency: authUid(${authUid}) != firestoreUserId(${firestoreUserId}) != settingsUserId(${settingsUserId})`);
+      }
+
+      return {
+        firebaseAuth: firebaseAuthUser,
+        firestoreUser,
+        userSettings,
+        deliveryLogs,
+        authUid,
+        firestoreUserId,
+        settingsUserId,
+        isDataConsistent,
+        issues
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to check user data for ${email}: ${errorMessage}`);
+      throw new Error(`Failed to check user data: ${errorMessage}`);
+    }
+  }
+
+  // Fix user email in Firestore to match Firebase Auth
+  async fixUserEmail(authUid: string, correctEmail: string): Promise<{
+    success: boolean;
+    message: string;
+    updatedUser: any | null;
+  }> {
+    this.logger.log(`Fixing email for user ${authUid} to ${correctEmail}`);
+    
+    const firestore = this.firebaseService.getFirestore();
+    
+    try {
+      const userDoc = await firestore.collection('users').doc(authUid).get();
+      
+      if (!userDoc.exists) {
+        return {
+          success: false,
+          message: 'User document not found',
+          updatedUser: null
+        };
+      }
+      
+      const userData = userDoc.data();
+      const updatedUserData = {
+        ...userData,
+        email: correctEmail,
+        updatedAt: new Date()
+      };
+      
+      await firestore.collection('users').doc(authUid).set(updatedUserData);
+      
+      this.logger.log(`Updated email for user ${authUid} from ${userData?.email} to ${correctEmail}`);
+      
+      return {
+        success: true,
+        message: `Email updated successfully from ${userData?.email} to ${correctEmail}`,
+        updatedUser: updatedUserData
+      };
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to fix user email: ${errorMessage}`);
+      return {
+        success: false,
+        message: `Failed to fix user email: ${errorMessage}`,
+        updatedUser: null
+      };
+    }
+  }
 }

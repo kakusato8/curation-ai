@@ -44,9 +44,9 @@ exports.api = (0, https_1.onRequest)({
     memory: '1GiB',
     invoker: 'public',
 }, server);
-// Scheduled delivery function - runs every day at 8:15 AM JST
+// Scheduled delivery function - runs every day at 8:50 AM JST
 exports.scheduledDelivery = (0, scheduler_1.onSchedule)({
-    schedule: '15 8 * * *',
+    schedule: '50 8 * * *',
     timeZone: 'Asia/Tokyo',
     memory: '1GiB',
     timeoutSeconds: 540,
